@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Trash2, PlusCircle, ShoppingBag, LayoutDashboard, Globe, Palette, Smartphone, Award, ExternalLink } from 'lucide-react';
+import { Trash2, PlusCircle, ShoppingBag, LayoutDashboard, Globe, Palette, Smartphone, Award } from 'lucide-react';
 
 function App() {
   const [services, setServices] = useState([]);
