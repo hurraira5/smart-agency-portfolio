@@ -7,16 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Neon Connection
+// Neon PostgreSQL Connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
-});
-
-// Test Connection
-pool.connect((err) => {
-  if (err) console.log("❌ Neon Error:", err);
-  else console.log("✅ Neon PostgreSQL Connected!");
 });
 
 // GET Services
@@ -32,7 +26,7 @@ app.post('/api/services/add', async (req, res) => {
   const { title, description } = req.body;
   try {
     await pool.query('INSERT INTO services (title, description) VALUES ($1, $2)', [title, description]);
-    res.json({ message: "Added!" });
+    res.json({ message: "Service Added!" });
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -44,4 +38,4 @@ app.delete('/api/services/:id', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-app.listen(5000, () => console.log('Server on 5000'));
+app.listen(5000, () => console.log('Server running on port 5000'));
