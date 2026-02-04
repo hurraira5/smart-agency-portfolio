@@ -1,144 +1,98 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Trash2, PlusCircle, ShoppingBag, LayoutDashboard, Globe, Palette, Smartphone, Award } from 'lucide-react';
 
-const API_BASE_URL = "https://smart-agency-api.vercel.app"; 
+const API_BASE_URL = "https://smart-agency-api.vercel.app";
 
 function App() {
-  const [services, setServices] = useState([]);
-  const [view, setView] = useState('customer'); 
-  const [newService, setNewService] = useState({ title: '', description: '' });
+  const [menu, setMenu] = useState([]);
+  const [formData, setFormData] = useState({
+    name: '', description: '', price: '', category: 'Fast Food'
+  });
 
-  const fetchData = async () => {
+  // 1. Data Load Karna
+  useEffect(() => {
+    fetchMenu();
+  }, []);
+
+  const fetchMenu = async () => {
     try {
-      const sRes = await fetch(`${API_BASE_URL}/api/services`);
-      const sData = await sRes.json();
-      setServices(sData);
-    } catch (e) { console.log("Data fetch error", e); }
+      const res = await axios.get(`${API_BASE_URL}/api/menu`);
+      setMenu(res.data);
+    } catch (err) { console.error("Error fetching menu", err); }
   };
 
-  useEffect(() => { fetchData(); }, [view]);
-
-  const handleAddService = async (e) => {
+  // 2. Nayi Dish Add Karna
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await fetch(`${API_BASE_URL}/api/services/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newService)
-      });
-      setNewService({ title: '', description: '' });
-      fetchData();
-      alert("Portfolio Item Added! ✅");
-    } catch (e) { alert("Error adding service"); }
+      await axios.post(`${API_BASE_URL}/api/menu/add`, formData);
+      alert("Dish Added! 🍔");
+      setFormData({ name: '', description: '', price: '', category: 'Fast Food' });
+      fetchMenu();
+    } catch (err) { alert("Error adding dish"); }
   };
 
-  const deleteService = async (id) => {
-    if(window.confirm("Remove this from portfolio?")) {
-      try {
-        await fetch(`${API_BASE_URL}/api/services/${id}`, { method: 'DELETE' });
-        fetchData();
-      } catch (e) { alert("Error deleting service"); }
+  // 3. Delete Karna
+  const handleDelete = async (id) => {
+    if (window.confirm("Delete this item?")) {
+      await axios.delete(`${API_BASE_URL}/api/menu/${id}`);
+      fetchMenu();
     }
   };
 
   return (
-    <div className="bg-white min-vh-100">
-      {/* Navbar */}
-      <nav className="navbar navbar-dark bg-dark sticky-top shadow">
-        <div className="container">
-          <span className="navbar-brand fw-bold text-success d-flex align-items-center">
-            <ShoppingBag className="me-2" /> SMART AGENCY
-          </span>
-          <button className="btn btn-success rounded-pill px-4 fw-bold shadow-sm" onClick={() => setView(view === 'customer' ? 'admin' : 'customer')}>
-            {view === 'customer' ? <><LayoutDashboard size={18} className="me-1"/> Manage Portfolio</> : 'View Live Site'}
-          </button>
-        </div>
-      </nav>
-
-      {view === 'customer' ? (
-        <>
-          {/* Hero Section */}
-          <header className="bg-dark text-white py-5 text-center" style={{ background: 'linear-gradient(135deg, #000000 0%, #1a4d1a 100%)' }}>
-            <div className="container py-5">
-              <h1 className="display-3 fw-bold mb-3">Expert Digital Solutions</h1>
-              <p className="lead opacity-75 mb-4">Showcasing our premium work and expertise in Pakistan.</p>
-              <div className="d-flex justify-content-center gap-3">
-                <a href="#portfolio" className="btn btn-success btn-lg px-5 rounded-pill fw-bold shadow">View Work</a>
-                <button className="btn btn-outline-light btn-lg px-5 rounded-pill fw-bold">Contact Us</button>
-              </div>
-            </div>
-          </header>
-
-          <div className="container py-5" id="portfolio">
-            <div className="text-center mb-5">
-              <h2 className="fw-bold text-dark display-5">What We Do</h2>
-              <div className="bg-success mx-auto" style={{height: '4px', width: '60px'}}></div>
-            </div>
-            
-            <div className="row g-4 justify-content-center">
-              {services.map(s => (
-                <div className="col-md-4" key={s.id}> {/* 👈 _id se id kar diya */}
-                  <div className="card h-100 border-0 shadow-sm p-4 rounded-4 text-center bg-light transition-all">
-                    <div className="card-body">
-                      <div className="text-success mb-4">
-                        {s.title.toLowerCase().includes('web') ? <Globe size={48}/> : 
-                         s.title.toLowerCase().includes('design') ? <Palette size={48}/> : 
-                         s.title.toLowerCase().includes('app') ? <Smartphone size={48}/> : <Award size={48}/>}
-                      </div>
-                      <h4 className="fw-bold text-dark mb-3">{s.title}</h4>
-                      <p className="text-muted mb-0">{s.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+    <div className="container py-5">
+      <h1 className="text-center mb-5 text-danger fw-bold">🍔 My Restaurant Menu Admin</h1>
+      
+      {/* Form Section */}
+      <div className="card p-4 shadow-sm mb-5">
+        <h4>Add New Dish</h4>
+        <form onSubmit={handleSubmit} className="row g-3">
+          <div className="col-md-4">
+            <input type="text" placeholder="Dish Name" className="form-control" 
+              value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
           </div>
-        </>
-      ) : (
-        /* Admin View */
-        <div className="container py-5">
-          <div className="row">
-            <div className="col-lg-4 mb-4">
-              <div className="card shadow-sm border-0 rounded-4 p-4 sticky-top" style={{top: '100px'}}>
-                <h4 className="fw-bold mb-4 text-success"><PlusCircle className="me-2"/> New Project</h4>
-                <form onSubmit={handleAddService}>
-                  <div className="mb-3">
-                    <label className="small fw-bold mb-1">Project/Service Title</label>
-                    <input type="text" placeholder="e.g. Logo Design" className="form-control" value={newService.title} onChange={(e) => setNewService({...newService, title: e.target.value})} required />
-                  </div>
-                  <div className="mb-4">
-                    <label className="small fw-bold mb-1">Description</label>
-                    <textarea placeholder="Describe the service..." className="form-control" rows="4" value={newService.description} onChange={(e) => setNewService({...newService, description: e.target.value})} required />
-                  </div>
-                  <button className="btn btn-success w-100 fw-bold shadow">Add to Portfolio</button>
-                </form>
-              </div>
-            </div>
+          <div className="col-md-2">
+            <input type="number" placeholder="Price" className="form-control" 
+              value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} required />
+          </div>
+          <div className="col-md-3">
+            <select className="form-select" value={formData.category} 
+              onChange={(e) => setFormData({...formData, category: e.target.value})}>
+              <option value="Fast Food">Fast Food</option>
+              <option value="Desi">Desi</option>
+              <option value="Drinks">Drinks</option>
+            </select>
+          </div>
+          <div className="col-md-3">
+            <button type="submit" className="btn btn-danger w-100">Add to Menu</button>
+          </div>
+          <div className="col-12">
+            <textarea placeholder="Description" className="form-control" 
+              value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}></textarea>
+          </div>
+        </form>
+      </div>
 
-            <div className="col-lg-8">
-              <div className="card shadow-sm border-0 rounded-4 p-4">
-                <h4 className="fw-bold mb-4">Current Portfolio Items</h4>
-                <div className="table-responsive">
-                  <table className="table align-middle">
-                    <thead className="table-light"><tr><th>Work Title</th><th className="text-end">Action</th></tr></thead>
-                    <tbody>
-                      {services.map(s => (
-                        <tr key={s.id}> {/* 👈 _id se id kar diya */}
-                          <td className="fw-bold">{s.title}</td>
-                          <td className="text-end">
-                            <button onClick={() => deleteService(s.id)} className="btn btn-outline-danger btn-sm border-0"><Trash2 size={20}/></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+      {/* Menu List */}
+      <div className="row">
+        {menu.map(item => (
+          <div key={item.id} className="col-md-4 mb-4">
+            <div className="card h-100 shadow-sm border-danger">
+              <div className="card-body">
+                <span className="badge bg-warning text-dark mb-2">{item.category}</span>
+                <h5 className="card-title fw-bold">{item.name}</h5>
+                <p className="card-text text-muted small">{item.description}</p>
+                <div className="d-flex justify-content-between align-items-center">
+                  <span className="h5 text-danger mb-0">Rs. {item.price}</span>
+                  <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-outline-danger">Delete</button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
