@@ -1,38 +1,49 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* Overlay background ko thora blur aur dark karne ke liye */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px); /* Background blur effect */
+  display: flex; 
+  align-items: flex-start; /* Niche ke bajaye upar se start hoga */
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  z-index: 10000;
+  padding-top: 50px; /* Upar se thori jagah */
 }
 
-.App-link {
-  color: #61dafb;
+/* Modal box jo slide ho kar niche aayega */
+.location-modal {
+  background: white;
+  padding: 30px;
+  border-radius: 0 0 30px 30px; /* Sirf niche ke corners gol */
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  
+  /* Animation: 0.5 second mein upar se niche aayega */
+  animation: slideDown 0.5s ease-out;
 }
 
-@keyframes App-logo-spin {
+@keyframes slideDown {
   from {
-    transform: rotate(0deg);
+    transform: translateY(-100%); /* Screen ke upar chupa hua */
   }
   to {
-    transform: rotate(360deg);
+    transform: translateY(0); /* Apni asli jagah par */
   }
+}
+
+/* City Buttons ki styling */
+.city-btn {
+  cursor: pointer;
+  border: 2px solid #f0f0f0;
+  padding: 15px;
+  border-radius: 15px;
+  transition: 0.3s;
+  width: 130px;
+}
+
+.city-btn:hover {
+  border-color: #ffc400;
+  background-color: #fff9e6;
 }
