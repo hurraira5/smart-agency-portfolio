@@ -8,14 +8,16 @@ const Admin = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Data fetch karne ka function
   const fetchOrders = () => {
+    setLoading(true);
     axios.get(`${API_BASE_URL}/api/orders`)
       .then(res => {
         setOrders(res.data);
         setLoading(false);
       })
       .catch(err => {
-        console.error("Orders load error:", err);
+        console.error("Load error:", err);
         setLoading(false);
       });
   };
@@ -26,15 +28,22 @@ const Admin = () => {
 
   return (
     <div className="container mt-5">
+      {/* Header Section */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="fw-bold text-dark">
-          <span className="text-warning">Burger</span> O'Clock Admin 🍟
+          <span className="text-warning">Burger</span> O'Clock Admin 📋
         </h2>
-        <Link to="/" className="btn btn-outline-dark rounded-pill">
-          ← Back to Shop
-        </Link>
+        <div className="d-flex gap-2">
+          <button onClick={fetchOrders} className="btn btn-outline-primary rounded-pill">
+            🔄 Refresh
+          </button>
+          <Link to="/" className="btn btn-dark rounded-pill shadow-sm">
+            ← Back to Shop
+          </Link>
+        </div>
       </div>
 
+      {/* Loading Spinner */}
       {loading ? (
         <div className="text-center mt-5">
           <div className="spinner-border text-warning" role="status"></div>
@@ -46,42 +55,55 @@ const Admin = () => {
             <thead className="table-dark">
               <tr>
                 <th>Order ID</th>
-                <th>Customer</th>
+                <th>Customer Name</th>
                 <th>Phone & Address</th>
-                <th>Items</th>
+                <th>Items Ordered</th>
                 <th>Total Bill</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {orders.length > 0 ? (
-                orders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="text-muted small">#{order.id}</td>
-                    <td><div className="fw-bold">{order.customer_name}</div></td>
-                    <td>
-                      <div className="small">{order.phone}</div>
-                      <div className="text-muted" style={{ fontSize: '11px' }}>{order.address}</div>
-                    </td>
-                    <td>
-                      {JSON.parse(order.items || "[]").map((item, index) => (
-                        <span key={index} className="badge bg-light text-dark border me-1">
-                          {item.name}
+                orders.map((order) => {
+                  // Safe JSON Parsing: Agar data object hai ya string, dono handle honge
+                  let orderItems = [];
+                  try {
+                    orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                  } catch (e) {
+                    console.error("Parsing error for order:", order.id);
+                    orderItems = [];
+                  }
+
+                  return (
+                    <tr key={order.id}>
+                      <td className="text-muted small">#{order.id}</td>
+                      <td className="fw-bold">{order.customer_name}</td>
+                      <td>
+                        <div className="small fw-bold text-primary">{order.phone}</div>
+                        <div className="text-muted" style={{ fontSize: '11px', maxWidth: '200px' }}>
+                          {order.address}
+                        </div>
+                      </td>
+                      <td>
+                        {Array.isArray(orderItems) ? orderItems.map((item, i) => (
+                          <span key={i} className="badge bg-warning text-dark me-1 mb-1">
+                            {item.name}
+                          </span>
+                        )) : <span className="text-muted small">No items</span>}
+                      </td>
+                      <td className="fw-bold text-success">Rs. {order.total_amount}</td>
+                      <td>
+                        <span className="badge bg-info text-uppercase" style={{ fontSize: '10px' }}>
+                          {order.status || 'pending'}
                         </span>
-                      ))}
-                    </td>
-                    <td className="fw-bold text-success">Rs. {order.total_amount}</td>
-                    <td>
-                      <span className="badge bg-warning text-dark text-uppercase">
-                        {order.status || 'Pending'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="6" className="text-center py-5 text-muted">
-                    No orders found yet! 🍔
+                    Abhi tak koi order nahi aaya! 🍔
                   </td>
                 </tr>
               )}
