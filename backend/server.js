@@ -40,5 +40,4 @@ app.post('/api/menu/add', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Vercel Export
 module.exports = app;
