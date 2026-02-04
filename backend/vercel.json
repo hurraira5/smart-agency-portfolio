@@ -1,7 +1,13 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "backend/server.js",
+      "use": "@vercel/node"
+    }
+  ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/server.js" },
-    { "source": "/", "destination": "/server.js" }
+    { "source": "/api/(.*)", "destination": "backend/server.js" },
+    { "source": "/", "destination": "backend/server.js" }
   ]
 }
