@@ -20,17 +20,17 @@ app.get('/', (req, res) => {
   res.send("Burger O'Clock API is Running! 🍔");
 });
 
-// --- 4. MENU ROUTES (Khana Check Karne Ke Liye) ---
+// --- 4. MENU ROUTES ---
 app.get('/api/menu', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu_items ORDER BY id DESC');
     res.json(result.rows);
   } catch (err) {
-    res.status(500).send("Menu Error: " + err.message);
+    res.status(500).json({ error: "Menu Error: " + err.message });
   }
 });
 
-// --- 5. ORDER POST ROUTE (Customer Order Save Karne Ke Liye) ---
+// --- 5. ORDER POST ROUTE ---
 app.post('/api/orders', async (req, res) => {
   const { customer_name, phone, address, items, total_amount } = req.body;
   try {
@@ -40,20 +40,33 @@ app.post('/api/orders', async (req, res) => {
     );
     res.json({ message: "Order Received!", order: result.rows[0] });
   } catch (err) {
-    res.status(500).send("Order Save Error: " + err.message);
+    res.status(500).json({ error: "Order Save Error: " + err.message });
   }
 });
 
-// --- 6. GET ALL ORDERS (Admin Panel Ke Liye) ---
+// --- 6. GET ALL ORDERS ---
 app.get('/api/orders', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders ORDER BY id DESC');
     res.json(result.rows);
   } catch (err) {
-    res.status(500).send("Get Orders Error: " + err.message);
+    res.status(500).json({ error: "Get Orders Error: " + err.message });
   }
 });
 
-// --- 7. DELETE ORDER ROUTE (Admin Se Delete Karne Ke Liye) ---
+// --- 7. DELETE ORDER ROUTE (Yahan galti thi, ab theek hai) ---
 app.delete('/api/orders/:id', async (req, res) => {
-  const { id } = req
+  const { id } = req.params; // Aapka code yahan ruk gaya tha
+  try {
+    const result = await pool.query('DELETE FROM orders WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Order nahi mila!" });
+    }
+    res.json({ message: "Order Deleted Successfully! ✅" });
+  } catch (err) {
+    res.status(500).json({ error: "Delete Error: " + err.message });
+  }
+});
+
+// --- 8. EXPORT FOR VERCEL ---
+module.exports = app;
