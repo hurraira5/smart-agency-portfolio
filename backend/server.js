@@ -5,36 +5,22 @@ require('dotenv').config();
 
 const app = express();
 
-// CORS ko handle karna taaki Frontend data utha sakay
-app.use(cors({
-  origin: '*', // Sab origins ko allow kar raha hai (Testing ke liye best hai)
-  methods: ['GET', 'POST']
-}));
-
+// --- 1. MIDDLEWARE ---
+app.use(cors());
 app.use(express.json());
 
-// Database Connection
+// --- 2. DATABASE CONNECTION ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// 1. Home Route (Check karne ke liye)
+// --- 3. BASIC ROUTES ---
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is Fully Functional! 🍔");
+  res.send("Burger O'Clock API is Running! 🍔");
 });
 
-// --- 2. AGENCY ROUTES ---
-app.get('/api/services', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM services ORDER BY id DESC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).send("Agency Error: " + err.message);
-  }
-});
-
-// --- 3. MENU ROUTES ---
+// --- 4. MENU ROUTES (Khana Check Karne Ke Liye) ---
 app.get('/api/menu', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu_items ORDER BY id DESC');
@@ -44,44 +30,30 @@ app.get('/api/menu', async (req, res) => {
   }
 });
 
-app.post('/api/menu/add', async (req, res) => {
-  const { name, description, price, category, image_url } = req.body;
-  try {
-    await pool.query(
-      'INSERT INTO menu_items (name, description, price, category, image_url) VALUES ($1, $2, $3, $4, $5)', 
-      [name, description, price, category, image_url]
-    );
-    res.json({ message: "Dish Added!" });
-  } catch (err) {
-    res.status(500).send("Add Menu Error: " + err.message);
-  }
-});
-
-// --- 4. ORDER SAVE ROUTE (Customer Checkout) ---
+// --- 5. ORDER POST ROUTE (Customer Order Save Karne Ke Liye) ---
 app.post('/api/orders', async (req, res) => {
   const { customer_name, phone, address, items, total_amount } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO orders (customer_name, phone, address, items, total_amount, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', 
+      'INSERT INTO orders (customer_name, phone, address, items, total_amount, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [customer_name, phone, address, JSON.stringify(items), total_amount, 'pending']
     );
     res.json({ message: "Order Received!", order: result.rows[0] });
-  } catch (err) { 
-    res.status(500).send("Save Order Error: " + err.message); 
+  } catch (err) {
+    res.status(500).send("Order Save Error: " + err.message);
   }
 });
 
-// --- 5. GET ALL ORDERS (Admin Dashboard ke liye) ---
+// --- 6. GET ALL ORDERS (Admin Panel Ke Liye) ---
 app.get('/api/orders', async (req, res) => {
   try {
-    console.log("Fetching orders from database..."); // Debugging ke liye
-    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-    console.log("Orders found:", result.rows.length);
+    const result = await pool.query('SELECT * FROM orders ORDER BY id DESC');
     res.json(result.rows);
   } catch (err) {
-    console.error("Database Error:", err.message);
     res.status(500).send("Get Orders Error: " + err.message);
   }
 });
 
-module.exports = app;
+// --- 7. DELETE ORDER ROUTE (Admin Se Delete Karne Ke Liye) ---
+app.delete('/api/orders/:id', async (req, res) => {
+  const { id } = req
