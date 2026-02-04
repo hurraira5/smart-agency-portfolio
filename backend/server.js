@@ -12,6 +12,10 @@ const JWT_SECRET = process.env.JWT_SECRET || "apka_secret_key_123";
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("Burger O'Clock API is up and running!");
+});
+
 // --- 2. DATABASE CONNECTION ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
