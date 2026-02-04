@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Trash2, PlusCircle, ShoppingBag, LayoutDashboard, Globe, Palette, Smartphone, Award } from 'lucide-react';
 
+const API_BASE_URL = "https://smart-agency-api.vercel.app"; 
+
 function App() {
   const [services, setServices] = useState([]);
   const [view, setView] = useState('customer'); 
@@ -9,30 +11,34 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const sRes = await fetch('http://localhost:5000/api/services');
+      const sRes = await fetch(`${API_BASE_URL}/api/services`);
       const sData = await sRes.json();
       setServices(sData);
-    } catch (e) { console.log("Data fetch error"); }
+    } catch (e) { console.log("Data fetch error", e); }
   };
 
   useEffect(() => { fetchData(); }, [view]);
 
   const handleAddService = async (e) => {
     e.preventDefault();
-    await fetch('http://localhost:5000/api/services/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newService)
-    });
-    setNewService({ title: '', description: '' });
-    fetchData();
-    alert("Portfolio Item Added! ✅");
+    try {
+      await fetch(`${API_BASE_URL}/api/services/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newService)
+      });
+      setNewService({ title: '', description: '' });
+      fetchData();
+      alert("Portfolio Item Added! ✅");
+    } catch (e) { alert("Error adding service"); }
   };
 
   const deleteService = async (id) => {
     if(window.confirm("Remove this from portfolio?")) {
-      await fetch(`http://localhost:5000/api/services/${id}`, { method: 'DELETE' });
-      fetchData();
+      try {
+        await fetch(`${API_BASE_URL}/api/services/${id}`, { method: 'DELETE' });
+        fetchData();
+      } catch (e) { alert("Error deleting service"); }
     }
   };
 
@@ -72,8 +78,8 @@ function App() {
             
             <div className="row g-4 justify-content-center">
               {services.map(s => (
-                <div className="col-md-4" key={s._id}>
-                  <div className="card h-100 border-0 shadow-sm p-4 rounded-4 text-center bg-light transition-all border-hover">
+                <div className="col-md-4" key={s.id}> {/* 👈 _id se id kar diya */}
+                  <div className="card h-100 border-0 shadow-sm p-4 rounded-4 text-center bg-light transition-all">
                     <div className="card-body">
                       <div className="text-success mb-4">
                         {s.title.toLowerCase().includes('web') ? <Globe size={48}/> : 
@@ -118,10 +124,10 @@ function App() {
                     <thead className="table-light"><tr><th>Work Title</th><th className="text-end">Action</th></tr></thead>
                     <tbody>
                       {services.map(s => (
-                        <tr key={s._id}>
+                        <tr key={s.id}> {/* 👈 _id se id kar diya */}
                           <td className="fw-bold">{s.title}</td>
                           <td className="text-end">
-                            <button onClick={() => deleteService(s._id)} className="btn btn-outline-danger btn-sm border-0"><Trash2 size={20}/></button>
+                            <button onClick={() => deleteService(s.id)} className="btn btn-outline-danger btn-sm border-0"><Trash2 size={20}/></button>
                           </td>
                         </tr>
                       ))}
