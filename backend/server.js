@@ -15,15 +15,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Test Route (Check karne ke liye ke backend zinda hai)
+// Test Route
 app.get('/', (req, res) => {
-  res.send("Smart Agency API is running...");
+  res.send("Restaurant API is running...");
 });
 
-// GET Services
-app.get('/api/services', async (req, res) => {
+// 1. GET Menu Items (Saara khana dikhane ke liye)
+app.get('/api/menu', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM services ORDER BY id DESC');
+    const result = await pool.query('SELECT * FROM menu_items ORDER BY id DESC');
     res.json(result.rows);
   } catch (err) {
     console.error("Fetch Error:", err.message);
@@ -31,23 +31,24 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
-// POST Service
-app.post('/api/services/add', async (req, res) => {
-  const { title, description } = req.body;
+// 2. POST Menu Item (Nayi dish add karne ke liye)
+app.post('/api/menu/add', async (req, res) => {
+  const { name, description, price, category, image_url } = req.body;
   try {
-    await pool.query('INSERT INTO services (title, description) VALUES ($1, $2)', [title, description]);
-    res.json({ message: "Service Added!" });
+    const query = 'INSERT INTO menu_items (name, description, price, category, image_url) VALUES ($1, $2, $3, $4, $5)';
+    await pool.query(query, [name, description, price, category, image_url]);
+    res.json({ message: "Dish Added to Menu! 🍔" });
   } catch (err) {
     console.error("Add Error:", err.message);
     res.status(500).send(err.message);
   }
 });
 
-// DELETE Service
-app.delete('/api/services/:id', async (req, res) => {
+// 3. DELETE Menu Item (Dish khatam karne ke liye)
+app.delete('/api/menu/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM services WHERE id = $1', [req.params.id]);
-    res.json({ message: "Deleted!" });
+    await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.id]);
+    res.json({ message: "Dish Removed!" });
   } catch (err) {
     console.error("Delete Error:", err.message);
     res.status(500).send(err.message);
@@ -60,5 +61,4 @@ if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
-// Ye line Vercel ke liye sab se zaroori hai
 module.exports = app;
