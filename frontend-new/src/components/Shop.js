@@ -7,8 +7,9 @@ const Shop = () => {
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null); // Error check karne ke liye
 
-  // Default branch ID (Filhaal hum manually set kar rahe hain, baad mein dropdown se bhi kar sakte hain)
+  // Default branch ID (Check karein ke aapne Manager dashboard mein isi ID par food add kiya hai)
   const branchId = 1; 
 
   useEffect(() => {
@@ -17,15 +18,22 @@ const Shop = () => {
 
   const fetchMenu = async () => {
     try {
+      setLoading(true);
       const res = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${branchId}`);
-      setMenuItems(res.data);
       
-      // Unique categories nikalna
-      const cats = ['All', ...new Set(res.data.map(item => item.category))];
-      setCategories(cats);
+      if (res.data && res.data.length > 0) {
+        setMenuItems(res.data);
+        // Unique categories nikalna
+        const cats = ['All', ...new Set(res.data.map(item => item.category))];
+        setCategories(cats);
+        setError(null);
+      } else {
+        setError("No items found for this branch.");
+      }
       setLoading(false);
     } catch (err) {
       console.error("Menu load nahi hua", err);
+      setError("Failed to connect to the server.");
       setLoading(false);
     }
   };
@@ -42,7 +50,7 @@ const Shop = () => {
       </div>
 
       {/* Categories Scrollable Bar (Mobile Friendly) */}
-      <div className="d-flex overflow-auto p-3 bg-white border-bottom sticky-top" style={{ top: '56px', whiteSpace: 'nowrap', scrollbarWidth: 'none' }}>
+      <div className="d-flex overflow-auto p-3 bg-white border-bottom sticky-top" style={{ top: '56px', whiteSpace: 'nowrap', scrollbarWidth: 'none', zIndex: 10 }}>
         {categories.map(cat => (
           <button
             key={cat}
@@ -57,6 +65,11 @@ const Shop = () => {
       <div className="container py-4">
         {loading ? (
           <div className="text-center mt-5"><h5>Loading Menu...</h5></div>
+        ) : error ? (
+          <div className="text-center mt-5 py-5 bg-white rounded shadow-sm">
+            <h5 className="text-muted">{error}</h5>
+            <p className="small">Please check Manager Dashboard or Branch ID.</p>
+          </div>
         ) : (
           <div className="row g-3">
             {filteredItems.map(item => (
@@ -71,13 +84,13 @@ const Shop = () => {
                         </p>
                       </div>
                       <div>
-                        <span className="badge bg-light text-info border border-info px-2 py-1 mb-2">
+                        <span className="badge bg-info-subtle text-info border border-info px-2 py-1 mb-2 rounded-pill">
                           Rs. {item.price}
                         </span>
                       </div>
                     </div>
                     
-                    {/* Placeholder Image (Aap images baad mein add kar sakte hain) */}
+                    {/* Food Image Section */}
                     <div className="col-4 d-flex align-items-center justify-content-center bg-light">
                       <img 
                         src="https://via.placeholder.com/100?text=Food" 
@@ -98,9 +111,9 @@ const Shop = () => {
       </div>
 
       {/* Floating Cart Button (Mobile Typical) */}
-      <div className="fixed-bottom p-3 d-md-none" style={{ bottom: '20px' }}>
+      <div className="fixed-bottom p-3 d-md-none" style={{ bottom: '20px', zIndex: 100 }}>
         <button className="btn btn-dark w-100 py-3 rounded-pill shadow-lg d-flex justify-content-between px-4">
-          <span className="fw-bold">View Cart</span>
+          <span className="fw-bold">View Basket</span>
           <span>Rs. 0</span>
         </button>
       </div>
