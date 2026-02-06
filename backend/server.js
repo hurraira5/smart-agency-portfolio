@@ -16,12 +16,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// 1. Root Route (Status Check)
+// 1. Root Route
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is running with Manager Support!");
+  res.send("Burger O'Clock API is running with Detailed Error Logging!");
 });
 
-// 2. LOGIN ROUTE (Super Admin aur Branch Manager dono ke liye)
+// 2. LOGIN ROUTE
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -32,7 +32,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Password bypass (testing ke liye). Baad mein bcrypt use karenge.
+    // Simple password check (Testing phase)
+    if (user.password !== password) {
+      return res.status(401).json({ message: "Ghalat Password!" });
+    }
+
     const token = jwt.sign(
       { id: user.id, role: user.role, branch_id: user.branch_id },
       process.env.JWT_SECRET || 'admin123',
@@ -46,7 +50,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        branch_id: user.branch_id // Manager dashboard ke liye zaroori hai
+        branch_id: user.branch_id
       }
     });
   } catch (err) {
@@ -54,18 +58,27 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 3. REGISTER MANAGER (Super Admin hi access karega)
+// 3. REGISTER MANAGER (Updated for better Error Handling)
 app.post('/api/auth/register-manager', async (req, res) => {
   const { username, email, password, branch_id } = req.body;
+  
+  // Debugging ke liye log
+  console.log("Adding Manager for Branch ID:", branch_id);
+
   try {
     const newUser = await pool.query(
       'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [username, email, password, 'admin', branch_id]
+      [username || 'Manager', email, password, 'admin', branch_id]
     );
     res.status(201).json(newUser.rows[0]);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Manager register nahi ho saka. Email check karein." });
+    console.error("DETAILED DB ERROR:", err.message);
+    // Ab ye asli error bheje ga (e.g. Unique violation ya Foreign key violation)
+    res.status(500).json({ 
+      error: "Database Error", 
+      details: err.message,
+      hint: "Check if branch_id exists or email is unique"
+    });
   }
 });
 
@@ -115,7 +128,6 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
   }
 });
 
-// Ek specific branch ki details (Manager Dashboard ke liye)
 app.get('/api/branches/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM branches WHERE id = $1', [req.params.id]);
@@ -134,6 +146,5 @@ app.delete('/api/branches/:id', async (req, res) => {
   }
 });
 
-// Port Setting
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
