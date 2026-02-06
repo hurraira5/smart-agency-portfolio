@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom'; // URL se ID lene ke liye zaroori hai
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const Shop = () => {
@@ -7,33 +8,37 @@ const Shop = () => {
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // Error check karne ke liye
+  const [error, setError] = useState(null);
 
-  // Default branch ID (Check karein ke aapne Manager dashboard mein isi ID par food add kiya hai)
-  const branchId = 1; 
+  // URL se id parameter lega (e.g., /shop/2)
+  const { id } = useParams();
+  
+  // Agar URL mein ID nahi hai, toh default 1 use karega
+  const currentBranchId = id || 1; 
 
   useEffect(() => {
     fetchMenu();
-  }, []);
+    // eslint-disable-next-line
+  }, [currentBranchId]); // ID change hone par menu refresh hoga
 
   const fetchMenu = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${branchId}`);
+      setError(null);
+      const res = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${currentBranchId}`);
       
       if (res.data && res.data.length > 0) {
         setMenuItems(res.data);
-        // Unique categories nikalna
         const cats = ['All', ...new Set(res.data.map(item => item.category))];
         setCategories(cats);
-        setError(null);
       } else {
-        setError("No items found for this branch.");
+        setMenuItems([]);
+        setError(`Branch ${currentBranchId} mein abhi koi items nahi hain.`);
       }
       setLoading(false);
     } catch (err) {
-      console.error("Menu load nahi hua", err);
-      setError("Failed to connect to the server.");
+      console.error("Menu load error:", err);
+      setError("Server se connect nahi ho pa raha.");
       setLoading(false);
     }
   };
@@ -44,23 +49,25 @@ const Shop = () => {
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-      {/* Header / Navbar jaisa look */}
+      {/* Header */}
       <div className="bg-info text-white p-3 text-center sticky-top shadow-sm">
         <h4 className="fw-bold mb-0">🍔 BURGER O'CLOCK</h4>
       </div>
 
-      {/* Categories Scrollable Bar (Mobile Friendly) */}
-      <div className="d-flex overflow-auto p-3 bg-white border-bottom sticky-top" style={{ top: '56px', whiteSpace: 'nowrap', scrollbarWidth: 'none', zIndex: 10 }}>
-        {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`btn btn-sm me-2 rounded-pill px-4 fw-bold ${activeCategory === cat ? 'btn-info text-white' : 'btn-outline-secondary'}`}
-          >
-            {cat.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      {/* Categories Scrollable Bar */}
+      {!error && categories.length > 0 && (
+        <div className="d-flex overflow-auto p-3 bg-white border-bottom sticky-top" style={{ top: '56px', whiteSpace: 'nowrap', scrollbarWidth: 'none', zIndex: 10 }}>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`btn btn-sm me-2 rounded-pill px-4 fw-bold ${activeCategory === cat ? 'btn-info text-white' : 'btn-outline-secondary'}`}
+            >
+              {cat.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="container py-4">
         {loading ? (
@@ -68,7 +75,10 @@ const Shop = () => {
         ) : error ? (
           <div className="text-center mt-5 py-5 bg-white rounded shadow-sm">
             <h5 className="text-muted">{error}</h5>
-            <p className="small">Please check Manager Dashboard or Branch ID.</p>
+            <div className="mt-3">
+              <a href="/shop/1" className="btn btn-sm btn-outline-info me-2">Branch 1 Check Karein</a>
+              <a href="/shop/2" className="btn btn-sm btn-outline-info">Branch 2 Check Karein</a>
+            </div>
           </div>
         ) : (
           <div className="row g-3">
@@ -90,7 +100,6 @@ const Shop = () => {
                       </div>
                     </div>
                     
-                    {/* Food Image Section */}
                     <div className="col-4 d-flex align-items-center justify-content-center bg-light">
                       <img 
                         src="https://via.placeholder.com/100?text=Food" 
@@ -98,7 +107,7 @@ const Shop = () => {
                         className="img-fluid rounded" 
                         style={{ width: '80px', height: '80px', objectFit: 'cover' }} 
                       />
-                      <button className="btn btn-dark btn-sm position-absolute bottom-0 end-0 m-2 rounded-circle shadow" style={{ width: '32px', height: '32px' }}>
+                      <button className="btn btn-dark btn-sm position-absolute bottom-0 end-0 m-2 rounded-circle shadow">
                         +
                       </button>
                     </div>
@@ -110,8 +119,8 @@ const Shop = () => {
         )}
       </div>
 
-      {/* Floating Cart Button (Mobile Typical) */}
-      <div className="fixed-bottom p-3 d-md-none" style={{ bottom: '20px', zIndex: 100 }}>
+      {/* Mobile Basket Bar */}
+      <div className="fixed-bottom p-3 d-md-none" style={{ zIndex: 100 }}>
         <button className="btn btn-dark w-100 py-3 rounded-pill shadow-lg d-flex justify-content-between px-4">
           <span className="fw-bold">View Basket</span>
           <span>Rs. 0</span>

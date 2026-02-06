@@ -1,25 +1,22 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-// Saari Imports
+// Components Imports
 import Shop from './components/Shop';
 import Login from './components/Login';
 import SuperAdmin from './components/SuperAdmin';
 import ManagerDashboard from './components/ManagerDashboard';
 
-// IS HISSE KO UPDATE KIYA HAI
+// Protected Route Logic
 const ProtectedRoute = ({ children, roleRequired }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
-
-  // Console mein check karne ke liye
-  console.log("Current User Role:", user?.role);
 
   if (!token || !user) {
     return <Navigate to="/login" />;
   }
 
-  // Role check logic (Flexible update)
+  // Role check logic
   if (roleRequired && user.role.toLowerCase() !== roleRequired.toLowerCase()) {
     return <Navigate to="/" />;
   }
@@ -33,6 +30,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Shop />} />
+        <Route path="/shop/:id" element={<Shop />} /> {/* Dynamic Branch Route */}
         <Route path="/login" element={<Login />} />
         
         {/* Super Admin Route */}
@@ -42,7 +40,7 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Manager Dashboard Route (Yahan role admin hai) */}
+        {/* Manager Dashboard Route */}
         <Route path="/admin" element={
           <ProtectedRoute roleRequired="admin">
             <ManagerDashboard />
