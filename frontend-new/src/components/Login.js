@@ -10,8 +10,9 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
+      // FIX: 'identifier' ko 'email' bana kar bhej rahe hain
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
-        identifier,
+        email: identifier, 
         password
       });
       
@@ -24,7 +25,9 @@ const Login = () => {
         navigate('/admin');
       }
     } catch (err) {
-      alert("Login Failed! Username/Password check karein.");
+      // Ab humein exact error nazar aayega agar backend kuch bhejega
+      const errorMsg = err.response?.data?.message || "Login Failed!";
+      alert(errorMsg);
     }
   };
 

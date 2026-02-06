@@ -10,24 +10,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Database Connection
+// Database Connection (Neon)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Root Route (Checking if API is alive)
+// 1. Root Route (Status Check)
 app.get('/', (req, res) => {
   res.send("Burger O'Clock API is up and running!");
 });
 
-// LOGIN ROUTE (PASSWORD BYPASS VERSION)
+// 2. LOGIN ROUTE (Bypass Version for Testing)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   console.log("Login attempt for:", email);
 
   try {
-    // 1. Database mein user dhoondein
+    // Database mein user check karein
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     if (userResult.rows.length === 0) {
@@ -36,16 +36,13 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // 2. BYPASS LOGIC: Password check nahi hoga, seedha token banega
-    console.log("Bypassing password check for user:", user.username);
-
+    // Password bypass karke seedha token generate kar rahe hain
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || 'admin123',
       { expiresIn: '1d' }
     );
 
-    // 3. Response bhejein
     res.json({
       token,
       user: {
@@ -57,12 +54,39 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Server Error:", err.message);
+    console.error("Login Error:", err.message);
     res.status(500).json({ message: "Server Error", error: err.message });
   }
 });
 
-// Port settings
+// 3. BRANCH REGISTRATION ROUTE (Naya Feature)
+app.post('/api/branches/register', async (req, res) => {
+  const { branch_name, location, manager_name, contact_number } = req.body;
+  
+  try {
+    const newBranch = await pool.query(
+      'INSERT INTO branches (branch_name, location, manager_name, contact_number) VALUES ($1, $2, $3, $4) RETURNING *',
+      [branch_name, location, manager_name, contact_number]
+    );
+    res.status(201).json(newBranch.rows[0]);
+  } catch (err) {
+    console.error("Branch Register Error:", err.message);
+    res.status(500).json({ message: "Branch add nahi ho saki", error: err.message });
+  }
+});
+
+// 4. GET ALL BRANCHES (Dashboard par dikhane ke liye)
+app.get('/api/branches', async (req, res) => {
+  try {
+    const allBranches = await pool.query('SELECT * FROM branches ORDER BY created_at DESC');
+    res.json(allBranches.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Port Setting
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
