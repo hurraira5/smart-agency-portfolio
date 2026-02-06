@@ -18,7 +18,7 @@ const pool = new Pool({
 
 // Root Route
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is LIVE with Full Manager Support!");
+  res.send("Burger O'Clock API is LIVE with Tax & Delivery Fee Support!");
 });
 
 // --- 1. ORDERS API ---
@@ -50,7 +50,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// Full Order Edit (Customer Details & Items)
+// Full Order Edit
 app.put('/api/orders/:id', async (req, res) => {
   const { customer_name, customer_phone, customer_address, items, total_amount } = req.body;
   try {
@@ -65,14 +65,14 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
-// Post New Order (from Frontend)
+// Post New Order (Default Payment Method: Cash on Delivery)
 app.post('/api/orders', async (req, res) => {
-  const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method } = req.body;
+  const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, delivery_fee, subtotal } = req.body;
   try {
     const newOrder = await pool.query(
-      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, payment_method]
+      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
     );
     res.status(201).json(newOrder.rows[0]);
   } catch (err) { 
@@ -82,99 +82,91 @@ app.post('/api/orders', async (req, res) => {
 
 // --- 2. MENU API ---
 
-// Get Menu Items for a branch
 app.get('/api/menu/:branch_id', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM menu_items WHERE branch_id = $1 ORDER BY id DESC', 
-      [req.params.branch_id]
-    );
+    const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Add New Menu Item
 app.post('/api/menu', async (req, res) => {
   const { name, price, category, branch_id, description } = req.body;
   try {
-    const newItem = await pool.query(
-      'INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
-      [name, price, category, branch_id, description]
-    );
+    const newItem = await pool.query('INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, price, category, branch_id, description]);
     res.status(201).json(newItem.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Edit Existing Menu Item (NEW ROUTE)
 app.put('/api/menu/:id', async (req, res) => {
   const { name, price, category, description } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE menu_items SET name=$1, price=$2, category=$3, description=$4 WHERE id=$5 RETURNING *',
-      [name, price, category, description, req.params.id]
-    );
+    const result = await pool.query('UPDATE menu_items SET name=$1, price=$2, category=$3, description=$4 WHERE id=$5 RETURNING *', [name, price, category, description, req.params.id]);
     res.json(result.rows[0]);
-  } catch (err) { 
-    res.status(500).json({ error: err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Delete Menu Item
 app.delete('/api/menu/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.id]);
-    res.json({ message: "Item deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    res.json({ message: "Item deleted" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 3. AUTH & BRANCHES ---
+// --- 3. DELIVERY FEES & TAX SETTINGS (NEW) ---
 
-// Login Route
+// Get all delivery areas and fees for a branch
+app.get('/api/delivery-fees/:branch_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM delivery_fees WHERE branch_id = $1 ORDER BY area_name ASC', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Add or Update delivery fee for an area
+app.post('/api/delivery-fees', async (req, res) => {
+  const { branch_id, area_name, fee } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO delivery_fees (branch_id, area_name, fee) 
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (branch_id, area_name) DO UPDATE SET fee = EXCLUDED.fee 
+       RETURNING *`,
+      [branch_id, area_name, fee]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Update Branch Tax Percentage
+app.put('/api/branches/:id/tax', async (req, res) => {
+  const { tax_rate } = req.body;
+  try {
+    await pool.query('UPDATE branches SET tax_rate = $1 WHERE id = $2', [tax_rate, req.params.id]);
+    res.json({ message: "Tax updated successfully" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 4. AUTH & BRANCHES ---
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) return res.status(401).json({ message: "User not found!" });
-    
     const user = userResult.rows[0];
     if (user.password !== password) return res.status(401).json({ message: "Invalid password!" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, branch_id: user.branch_id }, 
-      process.env.JWT_SECRET || 'admin123', 
-      { expiresIn: '1d' }
-    );
-    
-    res.json({ 
-      token, 
-      user: { 
-        id: user.id, 
-        username: user.username, 
-        role: user.role, 
-        branch_id: user.branch_id 
-      } 
-    });
-  } catch (err) { 
-    res.status(500).json({ error: err.message }); 
-  }
+    const token = jwt.sign({ id: user.id, role: user.role, branch_id: user.branch_id }, process.env.JWT_SECRET || 'admin123', { expiresIn: '1d' });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Get Branch Details
 app.get('/api/branches/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM branches WHERE id = $1', [req.params.id]);
     res.json(result.rows[0]);
-  } catch (err) { 
-    res.status(500).json({ error: err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
