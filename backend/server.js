@@ -18,7 +18,7 @@ const pool = new Pool({
 
 // 1. Root Route
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is running with Deals Support!");
+  res.send("Burger O'Clock API is running with Deals & Orders Support!");
 });
 
 // 2. LOGIN ROUTE
@@ -53,7 +53,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 3. MENU ROUTES (Updated for Description/Deals)
+// 3. MENU ROUTES
 app.post('/api/menu', async (req, res) => {
   const { name, price, category, branch_id, description } = req.body;
   try {
@@ -84,6 +84,32 @@ app.delete('/api/menu/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- NAYA ORDER ROUTE ADD KIYA HAI ---
+app.post('/api/orders', async (req, res) => {
+  const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method } = req.body;
+  try {
+    const newOrder = await pool.query(
+      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, payment_method]
+    );
+    res.status(201).json(newOrder.rows[0]);
+  } catch (err) {
+    console.error("Order Insert Error:", err.message);
+    res.status(500).json({ error: "Order save nahi ho saka", details: err.message });
+  }
+});
+
+app.get('/api/orders/:branch_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// -------------------------------------
 
 // 4. REGISTER MANAGER 
 app.post('/api/auth/register-manager', async (req, res) => {
