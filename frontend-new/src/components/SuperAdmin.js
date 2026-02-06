@@ -1,60 +1,94 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
 const SuperAdminDashboard = () => {
-  const user = JSON.parse(localStorage.getItem('user'));
+  const [branches, setBranches] = useState([]);
+  const [formData, setFormData] = useState({
+    branch_name: '',
+    location: '',
+    manager_name: '',
+    contact_number: ''
+  });
+
+  // 1. Purani branches ko load karne ke liye
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
+  const fetchBranches = async () => {
+    try {
+      const res = await axios.get("https://smart-agency-api.vercel.app/api/branches");
+      setBranches(res.data);
+    } catch (err) {
+      console.error("Error fetching branches", err);
+    }
+  };
+
+  // 2. Form submit karne ke liye
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post("https://smart-agency-api.vercel.app/api/branches/register", formData);
+      alert("Branch Registered Successfully! 🍔");
+      setFormData({ branch_name: '', location: '', manager_name: '', contact_number: '' });
+      fetchBranches(); // List ko update karne ke liye
+    } catch (err) {
+      alert("Registration Failed!");
+    }
+  };
 
   return (
-    <div className="container-fluid">
-      <div className="row">
-        {/* Sidebar (Chota sa simple) */}
-        <nav className="col-md-2 d-none d-md-block bg-dark sidebar vh-100 p-3">
-          <h4 className="text-warning mb-4">Burger O'Clock</h4>
-          <ul className="nav flex-column">
-            <li className="nav-item mb-2"><a className="nav-link text-white active" href="#">Dashboard</a></li>
-            <li className="nav-item mb-2"><a className="nav-link text-white" href="#">Manage Branches</a></li>
-            <li className="nav-item mb-2"><a className="nav-link text-white" href="#">Inventory</a></li>
-          </ul>
-        </nav>
-
-        {/* Main Content */}
-        <main className="col-md-10 ms-sm-auto px-md-4 py-4">
-          <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-            <h1 className="h2">Super Admin Dashboard</h1>
-            <div className="btn-toolbar mb-2 mb-md-0">
-              <span className="badge bg-warning text-dark p-2">Welcome, {user?.username}</span>
-            </div>
+    <div className="container mt-4">
+      <h2 className="fw-bold mb-4">Super Admin <span className="text-warning">Dashboard</span></h2>
+      
+      {/* Branch Registration Form */}
+      <div className="card p-4 shadow-sm mb-5 border-0 bg-light">
+        <h4>Register New Branch</h4>
+        <form onSubmit={handleSubmit} className="row g-3 mt-2">
+          <div className="col-md-3">
+            <input type="text" className="form-control" placeholder="Branch Name" 
+              value={formData.branch_name} onChange={(e) => setFormData({...formData, branch_name: e.target.value})} required />
           </div>
-
-          {/* Stats Cards */}
-          <div className="row">
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 bg-primary text-white p-3 mb-3">
-                <h5>Total Branches</h5>
-                <h2>05</h2>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 bg-success text-white p-3 mb-3">
-                <h5>Active Staff</h5>
-                <h2>42</h2>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 bg-danger text-white p-3 mb-3">
-                <h5>Pending Orders</h5>
-                <h2>12</h2>
-              </div>
-            </div>
+          <div className="col-md-3">
+            <input type="text" className="form-control" placeholder="Location" 
+              value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} required />
           </div>
-
-          {/* Quick Actions */}
-          <div className="mt-5">
-            <h3>Quick Actions</h3>
-            <button className="btn btn-warning me-2 mt-2 fw-bold">+ Register New Branch</button>
-            <button className="btn btn-outline-dark mt-2 fw-bold">View Reports</button>
+          <div className="col-md-2">
+            <input type="text" className="form-control" placeholder="Manager" 
+              value={formData.manager_name} onChange={(e) => setFormData({...formData, manager_name: e.target.value})} />
           </div>
-        </main>
+          <div className="col-md-2">
+            <input type="text" className="form-control" placeholder="Contact" 
+              value={formData.contact_number} onChange={(e) => setFormData({...formData, contact_number: e.target.value})} />
+          </div>
+          <div className="col-md-2">
+            <button type="submit" className="btn btn-warning w-100 fw-bold">Add Branch</button>
+          </div>
+        </form>
       </div>
+
+      {/* Branches List Table */}
+      <h4>Active Branches</h4>
+      <table className="table table-hover shadow-sm mt-3">
+        <thead className="table-dark">
+          <tr>
+            <th>Name</th>
+            <th>Location</th>
+            <th>Manager</th>
+            <th>Contact</th>
+          </tr>
+        </thead>
+        <tbody>
+          {branches.map((branch) => (
+            <tr key={branch.id}>
+              <td>{branch.branch_name}</td>
+              <td>{branch.location}</td>
+              <td>{branch.manager_name}</td>
+              <td>{branch.contact_number}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
