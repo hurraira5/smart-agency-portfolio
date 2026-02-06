@@ -34,7 +34,7 @@ const Login = () => {
   return (
     <div className="container mt-5 d-flex justify-content-center">
       <div className="card p-4 shadow-lg border-0" style={{ maxWidth: '400px', width: '100%' }}>
-        <h3 className="text-center mb-4 fw-bold">Example<span className="text-warning">Login</span></h3>
+        <h3 className="text-center mb-4 fw-bold">Restaurant <span className="text-warning">Login</span></h3>
         <form onSubmit={handleLogin}>
           <div className="mb-3">
             <input type="text" className="form-control" placeholder="Email or Username" 
