@@ -6,152 +6,85 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database Connection (Neon)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// 1. Root Route
-app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is running with Deals & Orders Support!");
+app.get('/', (req, res) => res.send("Burger O'Clock API is running with Orders Management!"));
+
+// --- ORDER ACTIONS (NEW) ---
+// 1. Update Status (Accept/Cancel)
+app.put('/api/orders/:id/status', async (req, res) => {
+  const { status } = req.body;
+  try {
+    const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 2. LOGIN ROUTE
+// 2. Full Order Edit
+app.put('/api/orders/:id', async (req, res) => {
+  const { customer_name, customer_phone, customer_address, items, total_amount } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE orders SET customer_name=$1, customer_phone=$2, customer_address=$3, items=$4, total_amount=$5 
+       WHERE id=$6 RETURNING *`,
+      [customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- EXISTING ROUTES ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ message: "User table mein nahi mila!" });
-    }
+    if (userResult.rows.length === 0) return res.status(401).json({ message: "User not found!" });
     const user = userResult.rows[0];
-    if (user.password !== password) {
-      return res.status(401).json({ message: "Ghalat Password!" });
-    }
-    const token = jwt.sign(
-      { id: user.id, role: user.role, branch_id: user.branch_id },
-      process.env.JWT_SECRET || 'admin123',
-      { expiresIn: '1d' }
-    );
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        branch_id: user.branch_id
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Server Error", error: err.message });
-  }
+    if (user.password !== password) return res.status(401).json({ message: "Wrong Password!" });
+    const token = jwt.sign({ id: user.id, role: user.role, branch_id: user.branch_id }, process.env.JWT_SECRET || 'admin123', { expiresIn: '1d' });
+    res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role, branch_id: user.branch_id } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. MENU ROUTES
 app.post('/api/menu', async (req, res) => {
   const { name, price, category, branch_id, description } = req.body;
   try {
-    const newItem = await pool.query(
-      'INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, price, category, branch_id, description]
-    );
+    const newItem = await pool.query('INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, price, category, branch_id, description]);
     res.status(201).json(newItem.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/menu/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/menu/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.id]);
-    res.json({ message: "Item deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    res.json({ message: "Deleted" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- NAYA ORDER ROUTE ADD KIYA HAI ---
 app.post('/api/orders', async (req, res) => {
   const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method } = req.body;
   try {
-    const newOrder = await pool.query(
-      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, payment_method]
-    );
+    const newOrder = await pool.query(`INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`, [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, payment_method]);
     res.status(201).json(newOrder.rows[0]);
-  } catch (err) {
-    console.error("Order Insert Error:", err.message);
-    res.status(500).json({ error: "Order save nahi ho saka", details: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-// -------------------------------------
-
-// 4. REGISTER MANAGER 
-app.post('/api/auth/register-manager', async (req, res) => {
-  const { username, email, password, branch_id } = req.body;
-  try {
-    const newUser = await pool.query(
-      'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [username || 'Manager', email, password, 'admin', branch_id]
-    );
-    res.status(201).json(newUser.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Database Error", details: err.message });
-  }
-});
-
-// 5. RESTAURANTS & BRANCHES
-app.post('/api/restaurants', async (req, res) => {
-  const { name, owner_name, type } = req.body;
-  try {
-    const result = await pool.query('INSERT INTO restaurants (name, owner_name, type) VALUES ($1, $2, $3) RETURNING *', [name, owner_name, type || 'single']);
-    res.status(201).json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/restaurants', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM restaurants ORDER BY created_at DESC');
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/branches/register', async (req, res) => {
-  const { branch_name, location, manager_name, contact_number, restaurant_id } = req.body;
-  try {
-    const result = await pool.query('INSERT INTO branches (branch_name, location, manager_name, contact_number, restaurant_id) VALUES ($1, $2, $3, $4, $5) RETURNING *', [branch_name, location, manager_name, contact_number, restaurant_id]);
-    res.status(201).json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/restaurants/:id/branches', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1', [req.params.id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
