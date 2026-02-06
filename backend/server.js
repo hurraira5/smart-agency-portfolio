@@ -18,7 +18,7 @@ const pool = new Pool({
 
 // 1. Root Route
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is running with Menu Support!");
+  res.send("Burger O'Clock API is running with Deals Support!");
 });
 
 // 2. LOGIN ROUTE
@@ -53,13 +53,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 3. MENU ROUTES
+// 3. MENU ROUTES (Updated for Description/Deals)
 app.post('/api/menu', async (req, res) => {
-  const { name, price, category, branch_id } = req.body;
+  const { name, price, category, branch_id, description } = req.body;
   try {
     const newItem = await pool.query(
-      'INSERT INTO menu_items (name, price, category, branch_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, price, category, branch_id]
+      'INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, price, category, branch_id, description]
     );
     res.status(201).json(newItem.rows[0]);
   } catch (err) {
@@ -69,14 +69,13 @@ app.post('/api/menu', async (req, res) => {
 
 app.get('/api/menu/:branch_id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1', [req.params.branch_id]);
+    const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE MENU ITEM ROUTE (Naya Add Kiya)
 app.delete('/api/menu/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.id]);
