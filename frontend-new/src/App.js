@@ -6,6 +6,8 @@ import Shop from './components/Shop';
 import Login from './components/Login';
 import SuperAdmin from './components/SuperAdmin';
 import ManagerDashboard from './components/ManagerDashboard';
+import Checkout from './components/Checkout';
+import ThankYou from './components/ThankYou';
 
 // Protected Route Logic
 const ProtectedRoute = ({ children, roleRequired }) => {
@@ -16,7 +18,6 @@ const ProtectedRoute = ({ children, roleRequired }) => {
     return <Navigate to="/login" />;
   }
 
-  // Role check logic
   if (roleRequired && user.role.toLowerCase() !== roleRequired.toLowerCase()) {
     return <Navigate to="/" />;
   }
@@ -30,8 +31,10 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Shop />} />
-        <Route path="/shop/:id" element={<Shop />} /> {/* Dynamic Branch Route */}
+        <Route path="/shop/:id" element={<Shop />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/thank-you" element={<ThankYou />} />
         
         {/* Super Admin Route */}
         <Route path="/super-admin" element={
