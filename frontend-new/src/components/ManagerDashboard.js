@@ -16,11 +16,9 @@ const ManagerDashboard = () => {
 
   const fetchBranchAndMenu = async () => {
     try {
-      // Branch ki details
       const bRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}`);
       setBranchInfo(bRes.data);
       
-      // Menu items ki list
       const mRes = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${user.branch_id}`);
       setMenuItems(mRes.data);
     } catch (err) {
@@ -37,9 +35,21 @@ const ManagerDashboard = () => {
       });
       alert("Food Item Added! 🍔");
       setFoodData({ name: '', price: '', category: 'Burger' });
-      fetchBranchAndMenu(); // Table refresh karne ke liye
+      fetchBranchAndMenu();
     } catch (err) {
-      alert("Error adding food item");
+      const errorMsg = err.response?.data?.error || err.message;
+      alert("Asli Error: " + errorMsg); 
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this item?")) {
+      try {
+        await axios.delete(`https://smart-agency-api.vercel.app/api/menu/${id}`);
+        fetchBranchAndMenu(); // Refresh table
+      } catch (err) {
+        alert("Error deleting item");
+      }
     }
   };
 
@@ -53,14 +63,13 @@ const ManagerDashboard = () => {
       </div>
 
       <div className="row g-4">
-        {/* Form Section */}
         <div className="col-md-4">
           <div className="card p-4 shadow-sm border-0">
             <h5 className="fw-bold mb-3 text-primary">Add New Item</h5>
             <form onSubmit={handleAddFood}>
               <div className="mb-3">
                 <label className="form-label small fw-bold">Item Name</label>
-                <input type="text" className="form-control" placeholder="e.g. Zinger Burger" 
+                <input type="text" className="form-control" placeholder="e.g. Zinger" 
                   value={foodData.name} onChange={(e) => setFoodData({...foodData, name: e.target.value})} required />
               </div>
               <div className="mb-3">
@@ -82,7 +91,6 @@ const ManagerDashboard = () => {
           </div>
         </div>
 
-        {/* Menu Table Section */}
         <div className="col-md-8">
           <div className="card p-4 shadow-sm border-0">
             <h5 className="fw-bold mb-3 text-success">Current Menu</h5>
@@ -93,6 +101,7 @@ const ManagerDashboard = () => {
                     <th>Item Name</th>
                     <th>Category</th>
                     <th>Price</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -101,9 +110,12 @@ const ManagerDashboard = () => {
                       <td className="fw-bold">{item.name}</td>
                       <td><span className="badge bg-info text-dark">{item.category}</span></td>
                       <td>Rs. {item.price}</td>
+                      <td>
+                        <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-danger">Delete</button>
+                      </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan="3" className="text-center text-muted italic">No items added yet.</td></tr>
+                    <tr><td colSpan="4" className="text-center text-muted italic">No items added yet.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -53,7 +53,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 3. MENU ROUTES (Naya Add Kiya)
+// 3. MENU ROUTES
 app.post('/api/menu', async (req, res) => {
   const { name, price, category, branch_id } = req.body;
   try {
@@ -71,6 +71,16 @@ app.get('/api/menu/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1', [req.params.branch_id]);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE MENU ITEM ROUTE (Naya Add Kiya)
+app.delete('/api/menu/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.id]);
+    res.json({ message: "Item deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
