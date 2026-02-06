@@ -78,15 +78,22 @@ const SuperAdmin = () => {
     const email = prompt("Manager Email:");
     const password = prompt("Manager Password:");
     if (!email || !password) return;
+
     try {
+      // API call to register manager
       await axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", {
         username: 'Branch Manager',
         email,
         password,
         branch_id: branchId
       });
-      alert("Manager Login Created! 🔑");
-    } catch (err) { alert("Error: Email pehle se maujood ho sakta hai."); }
+      alert("Manager Login Created Successfully! 🔑");
+    } catch (err) {
+      // YAHAN UPDATE KIYA HAI: Ab ye asli error dikhaye ga
+      const detailError = err.response?.data?.details || err.response?.data?.error || "Email pehle se maujood ho sakta hai.";
+      alert("Asli Database Error: " + detailError);
+      console.log("Full Error Context:", err.response?.data);
+    }
   };
 
   return (
@@ -135,7 +142,6 @@ const SuperAdmin = () => {
 
             {selectedRest && (
               <div className="fade-in">
-                {/* Branch Form - Single ho ya Multiple, Manager ke liye Branch banana zaroori hai */}
                 <div className="bg-light p-3 rounded mb-4">
                   <h6 className="fw-bold mb-3">Add Branch / Outlet for {selectedRest.name}</h6>
                   <form onSubmit={handleAddBranch} className="row g-2">

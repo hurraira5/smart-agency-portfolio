@@ -1,19 +1,29 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-// SAHI PATHS (Ab error nahi aayega):
+// Saari Imports
 import Shop from './components/Shop';
-import Admin from './components/Admin';
 import Login from './components/Login';
 import SuperAdmin from './components/SuperAdmin';
-import ManagerDashboard from './components/ManagerDashboard'; // './pages/' hata kar './components/' kar diya
+import ManagerDashboard from './components/ManagerDashboard';
 
-// Protected Route Logic
+// IS HISSE KO UPDATE KIYA HAI
 const ProtectedRoute = ({ children, roleRequired }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" />;
-  if (roleRequired && user.role !== roleRequired) return <Navigate to="/" />;
+
+  // Console mein check karne ke liye
+  console.log("Current User Role:", user?.role);
+
+  if (!token || !user) {
+    return <Navigate to="/login" />;
+  }
+
+  // Role check logic (Flexible update)
+  if (roleRequired && user.role.toLowerCase() !== roleRequired.toLowerCase()) {
+    return <Navigate to="/" />;
+  }
+
   return children;
 };
 
@@ -21,6 +31,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Shop />} />
         <Route path="/login" element={<Login />} />
         
@@ -31,7 +42,7 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Branch Manager Route */}
+        {/* Manager Dashboard Route (Yahan role admin hai) */}
         <Route path="/admin" element={
           <ProtectedRoute roleRequired="admin">
             <ManagerDashboard />
