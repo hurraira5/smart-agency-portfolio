@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 
 const Checkout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { id } = useParams(); // URL se branch ID pakadne ke liye
+  
+  // Cart aur Total data handle karna
   const { cart, total } = location.state || { cart: [], total: 0 };
+  const currentBranchId = id || 1; // Agar URL mein na ho toh default 1
 
   const [formData, setFormData] = useState({
-    fullName: '', mobile: '', address: '', landmark: '', city: 'Karachi', paymentMethod: 'Cash on Delivery'
+    fullName: '', 
+    mobile: '', 
+    address: '', 
+    landmark: '', 
+    city: 'Karachi', 
+    paymentMethod: 'Cash on Delivery'
   });
 
   const deliveryFee = 100;
@@ -16,29 +25,42 @@ const Checkout = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const orderData = {
-        branch_id: 1, // Branch ID manual ya dynamic
-        customer_name: formData.fullName,
-        customer_phone: formData.mobile,
-        customer_address: `${formData.address}, ${formData.landmark}`,
-        city: formData.city,
-        items: cart,
-        total_amount: grandTotal,
-        payment_method: formData.paymentMethod
-      };
 
+    // 1. Order Data ko sahi sequence mein organize kiya
+    const orderData = {
+      branch_id: parseInt(currentBranchId), 
+      customer_name: formData.fullName,
+      customer_phone: formData.mobile,
+      customer_address: `${formData.address}${formData.landmark ? ', ' + formData.landmark : ''}`,
+      city: formData.city,
+      items: cart,
+      total_amount: grandTotal,
+      payment_method: formData.paymentMethod
+    };
+
+    console.log("Attempting to send order:", orderData);
+
+    try {
+      // 2. API Call
       const res = await axios.post('https://smart-agency-api.vercel.app/api/orders', orderData);
-      if (res.status === 201) {
+      
+      // 3. Status 200 ya 201 dono success hain
+      if (res.status === 201 || res.status === 200) {
         navigate('/thank-you', { state: { order: res.data } });
       }
     } catch (err) {
-      alert("Order failed! Please try again.");
+      // 4. Console mein poori detail error ki
+      console.error("Order Error Detail:", err.response?.data || err.message);
+      
+      // 5. Asli wajah screen par dikhayega (Debugging)
+      const errorDetail = err.response?.data?.details || err.response?.data?.error || err.message;
+      alert(`Order Failed: ${errorDetail}`);
     }
   };
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+      {/* Header */}
       <div className="bg-danger text-white p-3 shadow-sm d-flex align-items-center sticky-top">
         <button onClick={() => navigate(-1)} className="btn text-white me-2 p-0">←</button>
         <h5 className="mb-0 fw-bold">Checkout</h5>
@@ -46,7 +68,7 @@ const Checkout = () => {
 
       <div className="container py-3">
         <form onSubmit={handleSubmit}>
-          {/* Customer Info */}
+          {/* Customer Info Card */}
           <div className="card border-0 shadow-sm p-3 mb-3 rounded-4">
             <h6 className="fw-bold mb-3 border-bottom pb-2">Delivery Information 🛵</h6>
             <div className="mb-3">
@@ -71,15 +93,16 @@ const Checkout = () => {
             </div>
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary Card */}
           <div className="card border-0 shadow-sm p-3 mb-4 rounded-4">
             <h6 className="fw-bold mb-3 border-bottom pb-2">Your Order Summary</h6>
-            {cart.map(item => (
+            {cart.length > 0 ? cart.map(item => (
               <div key={item.id} className="d-flex justify-content-between mb-2">
                 <span className="small">{item.qty} x {item.name}</span>
                 <span className="small fw-bold">Rs. {item.price * item.qty}</span>
               </div>
-            ))}
+            )) : <p className="text-muted small">Your cart is empty</p>}
+            
             <hr className="my-2" />
             <div className="d-flex justify-content-between small"><span>Subtotal</span><span>Rs. {total}</span></div>
             <div className="d-flex justify-content-between small"><span>Delivery Fee</span><span>Rs. {deliveryFee}</span></div>
