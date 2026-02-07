@@ -1,31 +1,33 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // APNI VERCEL API URL CHECK KAREIN
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
         email: identifier.trim(), 
         password: password.trim()
       });
       
+      // Data save karein
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
 
-      // Standardizing Role Navigation
-      const role = res.data.user.role;
+      const role = res.data.user.role.toLowerCase().trim();
 
+      // Navigate without hard reload to prevent state loss
       if (role === 'admin') {
-        window.location.assign('/super-admin');
+        navigate('/super-admin');
       } else if (role === 'manager') {
-        window.location.assign('/admin');
+        navigate('/admin');
       } else {
-        window.location.assign('/');
+        navigate('/');
       }
 
     } catch (err) {
@@ -46,7 +48,7 @@ const Login = () => {
             <input type="password" className="form-control" placeholder="Password" 
               onChange={(e) => setPassword(e.target.value)} required />
           </div>
-          <button type="submit" className="btn btn-warning w-100 fw-bold">Sign In</button>
+          <button type="submit" className="btn btn-warning w-100 fw-bold shadow-sm">Sign In</button>
         </form>
       </div>
     </div>

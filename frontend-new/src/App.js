@@ -9,23 +9,43 @@ import ManagerDashboard from './components/ManagerDashboard';
 import Checkout from './components/Checkout';
 import ThankYou from './components/ThankYou';
 
-// PROTECTED ROUTE - NO FLASH VERSION
+// --- PROTECTED ROUTE WITH LIVE SYNC ---
 const ProtectedRoute = ({ children, roleRequired }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  const token = localStorage.getItem('token');
+  const [isReady, setIsReady] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
-  // Agar token ya user nahi hai, to seedha login
-  if (!token || !user) {
-    return <Navigate to="/login" replace />;
+  useEffect(() => {
+    // Thora sabar taaki localStorage read ho jaye
+    const checkAuth = () => {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const token = localStorage.getItem('token');
+
+      if (token && user) {
+        const userRole = user.role.toLowerCase().trim();
+        const requiredRole = roleRequired.toLowerCase().trim();
+
+        if (userRole === requiredRole) {
+          setIsAuthorized(true);
+        }
+      }
+      setIsReady(true);
+    };
+
+    checkAuth();
+  }, [roleRequired]);
+
+  // Jab tak check ho raha hai, blank screen ya redirect nahi hoga
+  if (!isReady) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{height: '100vh', background: '#f8f9fa'}}>
+        <div className="spinner-border text-warning" role="status">
+          <span className="visually-hidden">Loading Session...</span>
+        </div>
+      </div>
+    );
   }
 
-  // Database se jo role aa raha hai usay clean karein
-  const userRole = user.role.toLowerCase().trim();
-  const requiredRole = roleRequired.toLowerCase().trim();
-
-  // Agar role match nahi hota (e.g. user is 'admin' but page needs 'manager')
-  if (userRole !== requiredRole) {
-    console.error("Access Denied. User Role:", userRole, "Required:", requiredRole);
+  if (!isAuthorized) {
     return <Navigate to="/login" replace />;
   }
 
@@ -42,21 +62,20 @@ function App() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/thank-you" element={<ThankYou />} />
         
-        {/* SUPER ADMIN: DB Role must be 'admin' */}
+        {/* SUPER ADMIN - DB Role: 'admin' */}
         <Route path="/super-admin" element={
           <ProtectedRoute roleRequired="admin">
             <SuperAdmin />
           </ProtectedRoute>
         } />
 
-        {/* MANAGER DASHBOARD: DB Role must be 'manager' */}
+        {/* MANAGER DASHBOARD - DB Role: 'manager' */}
         <Route path="/admin" element={
           <ProtectedRoute roleRequired="manager">
             <ManagerDashboard />
           </ProtectedRoute>
         } />
 
-        {/* Catch-all route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
