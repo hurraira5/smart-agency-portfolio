@@ -18,7 +18,7 @@ const pool = new Pool({
 
 // Root Route
 app.get('/', (req, res) => {
-  res.send("Smart Agency API is LIVE - 6-Digit Order IDs & Manager Fix Active!");
+  res.send("Smart Agency API is LIVE - Master Control & Manager Sync Ready!");
 });
 
 // --- 1. RESTAURANTS & BRANDS ---
@@ -50,38 +50,27 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
 
 // --- 2. BRANCH & MANAGER MANAGEMENT ---
 
-// FIXED: Manager Registration Logic
 app.post('/api/auth/register-manager', async (req, res) => {
   const { username, email, password, branch_id } = req.body;
-
   if (!email || !password || !branch_id) {
     return res.status(400).json({ error: "Email, Password, and Branch ID are required!" });
   }
-
   try {
     const userExist = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userExist.rows.length > 0) {
-      return res.status(400).json({ error: "Email already exists!" });
-    }
+    if (userExist.rows.length > 0) return res.status(400).json({ error: "Email already exists!" });
 
     const result = await pool.query(
       'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [username || 'Branch Manager', email, password, 'manager', parseInt(branch_id)]
     );
     res.status(201).json(result.rows[0]);
-  } catch (err) { 
-    console.error("Manager Registration Error:", err.message);
-    res.status(500).json({ error: "Database Rejection: " + err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: "Database Rejection: " + err.message }); }
 });
 
 app.put('/api/branches/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE branches SET status = $1 WHERE id = $2 RETURNING *',
-      [status, req.params.id]
-    );
+    const result = await pool.query('UPDATE branches SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -98,23 +87,18 @@ app.post('/api/branches/register', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 3. ORDERS API (WITH 6-DIGIT RANDOM ID) ---
+// --- 3. ORDERS API ---
 
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', 
-      [req.params.branch_id]
-    );
+    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/orders', async (req, res) => {
   const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, delivery_fee, subtotal } = req.body;
-  
   const customOrderId = Math.floor(100000 + Math.random() * 900000);
-
   try {
     const newOrder = await pool.query(
       `INSERT INTO orders (id, branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
@@ -122,18 +106,7 @@ app.post('/api/orders', async (req, res) => {
       [customOrderId, branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
     );
     res.status(201).json(newOrder.rows[0]);
-  } catch (err) { 
-    if (err.code === '23505') {
-       const retryId = Math.floor(100000 + Math.random() * 900000);
-       const retryResult = await pool.query(
-         `INSERT INTO orders (id, branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-         [retryId, branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
-       );
-       return res.status(201).json(retryResult.rows[0]);
-    }
-    res.status(500).json({ error: err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/orders/:id/status', async (req, res) => {
@@ -142,6 +115,99 @@ app.put('/api/orders/:id/status', async (req, res) => {
     const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 4. MENU API ---
+
+app.get('/api/menu/:branch_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM menu_items WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/menu', async (req, res) => {
+  const { name, price, category, branch_id, description } = req.body;
+  try {
+    const newItem = await pool.query('INSERT INTO menu_items (name, price, category, branch_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, price, category, branch_id, description]);
+    res.status(201).json(newItem.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/menu/:id', async (req, res) => {
+  const { name, price, category, description } = req.body;
+  try {
+    const result = await pool.query('UPDATE menu_items SET name=$1, price=$2, category=$3, description=$4 WHERE id=$5 RETURNING *', [name, price, category, description, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 5. SETTINGS (TAX & DELIVERY) ---
+
+app.get('/api/delivery-fees/:branch_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM delivery_fees WHERE branch_id = $1', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/delivery-fees', async (req, res) => {
+  const { branch_id, area_name, fee } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO delivery_fees (branch_id, area_name, fee) VALUES ($1, $2, $3) 
+       ON CONFLICT (branch_id, area_name) DO UPDATE SET fee = EXCLUDED.fee RETURNING *`,
+      [branch_id, area_name, fee]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/delivery-fees/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM delivery_fees WHERE id = $1', [req.params.id]);
+    res.json({ message: "Fee deleted" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/branches/:id/tax', async (req, res) => {
+  const { tax_rate } = req.body;
+  try {
+    await pool.query('UPDATE branches SET tax_rate = $1 WHERE id = $2', [tax_rate, req.params.id]);
+    res.json({ message: "Tax updated" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/branches/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM branches WHERE id = $1', [req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 6. AUTH & LOGIN (FIXED WITH JWT_SECRET) ---
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (userResult.rows.length === 0) return res.status(401).json({ message: "User not found!" });
+
+    const user = userResult.rows[0];
+    if (user.password !== password) return res.status(401).json({ message: "Invalid password!" });
+
+    // Using secret from Vercel/Env
+    const token = jwt.sign(
+      { id: user.id, role: user.role, branch_id: user.branch_id },
+      process.env.JWT_SECRET || 'admin123',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id }
+    });
+  } catch (err) { res.status(500).json({ error: "Server Error: " + err.message }); }
 });
 
 const PORT = process.env.PORT || 5000;
