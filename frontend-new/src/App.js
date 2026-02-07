@@ -1,52 +1,66 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-const Login = () => {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+// Components Imports
+import Shop from './components/Shop';
+import Login from './components/Login';
+import SuperAdmin from './components/SuperAdmin';
+import ManagerDashboard from './components/ManagerDashboard';
+import Checkout from './components/Checkout';
+import ThankYou from './components/ThankYou';
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      // APNI VERCEL BACKEND URL CHECK KAREIN
-      const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
-        email: identifier.trim(), 
-        password: password.trim()
-      });
-      
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+// PROTECTED ROUTE - NO FLASH VERSION
+const ProtectedRoute = ({ children, roleRequired }) => {
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = localStorage.getItem('token');
 
-      // Direct Redirect (Ye Flash ko kill kar deta hai)
-      if (res.data.user.role === 'admin') {
-        window.location.assign('/super-admin');
-      } else if (res.data.user.role === 'manager') {
-        window.location.assign('/admin');
-      } else {
-        window.location.assign('/');
-      }
+  // Agar token ya user nahi hai, to seedha login
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
 
-    } catch (err) {
-      alert(err.response?.data?.message || "Login Failed! Check credentials.");
-    }
-  };
+  // Database se jo role aa raha hai usay clean karein
+  const userRole = user.role.toLowerCase().trim();
+  const requiredRole = roleRequired.toLowerCase().trim();
 
-  return (
-    <div className="container mt-5 d-flex justify-content-center">
-      <div className="card p-4 shadow-lg border-0" style={{ maxWidth: '400px', width: '100%' }}>
-        <h3 className="text-center mb-4 fw-bold">Restaurant <span className="text-warning">Login</span></h3>
-        <form onSubmit={handleLogin}>
-          <div className="mb-3">
-            <input type="text" className="form-control" placeholder="Email" onChange={(e) => setIdentifier(e.target.value)} required />
-          </div>
-          <div className="mb-3">
-            <input type="password" className="form-control" placeholder="Password" onChange={(e) => setPassword(e.target.value)} required />
-          </div>
-          <button type="submit" className="btn btn-warning w-100 fw-bold shadow">Sign In</button>
-        </form>
-      </div>
-    </div>
-  );
+  // Agar role match nahi hota (e.g. user is 'admin' but page needs 'manager')
+  if (userRole !== requiredRole) {
+    console.error("Access Denied. User Role:", userRole, "Required:", requiredRole);
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 };
 
-export default Login;
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Shop />} />
+        <Route path="/shop/:id" element={<Shop />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/thank-you" element={<ThankYou />} />
+        
+        {/* SUPER ADMIN: DB Role must be 'admin' */}
+        <Route path="/super-admin" element={
+          <ProtectedRoute roleRequired="admin">
+            <SuperAdmin />
+          </ProtectedRoute>
+        } />
+
+        {/* MANAGER DASHBOARD: DB Role must be 'manager' */}
+        <Route path="/admin" element={
+          <ProtectedRoute roleRequired="manager">
+            <ManagerDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Catch-all route */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
