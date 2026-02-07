@@ -18,7 +18,7 @@ const pool = new Pool({
 
 // Root Route
 app.get('/', (req, res) => {
-  res.send("Smart Agency API is LIVE - Master Control Mode Active!");
+  res.send("Smart Agency API is LIVE - 6-Digit Order IDs & Manager Fix Active!");
 });
 
 // --- 1. RESTAURANTS & BRANDS ---
@@ -48,32 +48,30 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 2. BRANCH & MANAGER MANAGEMENT (FIXED & IMPROVED) ---
+// --- 2. BRANCH & MANAGER MANAGEMENT ---
 
-// CREATE MANAGER LOGIN - Isay maine update kiya hai taaki crash na ho
+// FIXED: Manager Registration Logic
 app.post('/api/auth/register-manager', async (req, res) => {
   const { username, email, password, branch_id } = req.body;
 
-  // Manual Check taaki backend crash na ho
   if (!email || !password || !branch_id) {
-    return res.status(400).json({ error: "Missing Required Fields (Email, Password, or Branch ID)" });
+    return res.status(400).json({ error: "Email, Password, and Branch ID are required!" });
   }
 
   try {
-    // Check if user already exists
     const userExist = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userExist.rows.length > 0) {
-      return res.status(400).json({ error: "This email is already registered!" });
+      return res.status(400).json({ error: "Email already exists!" });
     }
 
     const result = await pool.query(
       'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [username || 'Branch Manager', email, password, 'manager', branch_id]
+      [username || 'Branch Manager', email, password, 'manager', parseInt(branch_id)]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { 
     console.error("Manager Registration Error:", err.message);
-    res.status(500).json({ error: "Database Error: " + err.message }); 
+    res.status(500).json({ error: "Database Rejection: " + err.message }); 
   }
 });
 
@@ -100,7 +98,7 @@ app.post('/api/branches/register', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 3. ORDERS API ---
+// --- 3. ORDERS API (WITH 6-DIGIT RANDOM ID) ---
 
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
@@ -112,23 +110,39 @@ app.get('/api/orders/:branch_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/orders', async (req, res) => {
+  const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, delivery_fee, subtotal } = req.body;
+  
+  // 6-digit random ID generate karna
+  const customOrderId = Math.floor(100000 + Math.random() * 900000);
+
+  try {
+    const newOrder = await pool.query(
+      `INSERT INTO orders (id, branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [customOrderId, branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
+    );
+    res.status(201).json(newOrder.rows[0]);
+  } catch (err) { 
+    // Duplicate ID handling
+    if (err.code === '23505') {
+       const retryId = Math.floor(100000 + Math.random() * 900000);
+       const retryResult = await pool.query(
+         `INSERT INTO orders (id, branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+         [retryId, branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
+       );
+       return res.status(201).json(retryResult.rows[0]);
+    }
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
 app.put('/api/orders/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
     const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/orders', async (req, res) => {
-  const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, delivery_fee, subtotal } = req.body;
-  try {
-    const newOrder = await pool.query(
-      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, payment_method, delivery_fee, subtotal) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [branch_id, customer_name, customer_phone, customer_address, city, JSON.stringify(items), total_amount, 'Cash on Delivery', delivery_fee, subtotal]
-    );
-    res.status(201).json(newOrder.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
