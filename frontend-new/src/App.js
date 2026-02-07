@@ -18,7 +18,11 @@ const ProtectedRoute = ({ children, roleRequired }) => {
     return <Navigate to="/login" />;
   }
 
-  if (roleRequired && user.role.toLowerCase() !== roleRequired.toLowerCase()) {
+  // standardizing role check
+  const userRole = user.role.toLowerCase().trim();
+  const requiredRole = roleRequired.toLowerCase().trim();
+
+  if (userRole !== requiredRole) {
     return <Navigate to="/" />;
   }
 
@@ -36,16 +40,16 @@ function App() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/thank-you" element={<ThankYou />} />
         
-        {/* Super Admin Route */}
+        {/* Super Admin Route - Role is 'admin' in DB */}
         <Route path="/super-admin" element={
-          <ProtectedRoute roleRequired="superadmin">
+          <ProtectedRoute roleRequired="admin">
             <SuperAdmin />
           </ProtectedRoute>
         } />
 
-        {/* Manager Dashboard Route */}
+        {/* Manager Dashboard Route - Role is 'manager' in DB */}
         <Route path="/admin" element={
-          <ProtectedRoute roleRequired="admin">
+          <ProtectedRoute roleRequired="manager">
             <ManagerDashboard />
           </ProtectedRoute>
         } />
