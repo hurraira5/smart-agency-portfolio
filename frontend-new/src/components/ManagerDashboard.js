@@ -15,6 +15,9 @@ const ManagerDashboard = () => {
   const [editingFood, setEditingFood] = useState(null);
   const [foodData, setFoodData] = useState({ name: '', price: '', category: 'Burger', description: '' });
   
+  // NEW: Tax rate state for typing and saving
+  const [tempTaxRate, setTempTaxRate] = useState(0);
+  
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
 
@@ -33,10 +36,14 @@ const ManagerDashboard = () => {
     try {
       const bRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}`);
       setBranchInfo(bRes.data);
+      setTempTaxRate(bRes.data.tax_rate); // Set initial tax from DB
+      
       const mRes = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${user.branch_id}`);
       setMenuItems(mRes.data);
+      
       const dRes = await axios.get(`https://smart-agency-api.vercel.app/api/delivery-fees/${user.branch_id}`);
       setDeliveryFees(dRes.data);
+      
       fetchOrders();
     } catch (err) { console.error(err); }
   };
@@ -48,7 +55,6 @@ const ManagerDashboard = () => {
     } catch (err) { console.error(err); }
   };
 
-  // --- NEW: Status Update Function ---
   const handleStatusUpdate = async (id, status) => {
     try {
       await axios.put(`https://smart-agency-api.vercel.app/api/orders/${id}/status`, { status });
@@ -64,14 +70,18 @@ const ManagerDashboard = () => {
     } catch (err) { console.error(err); }
   };
 
-  const handleUpdateTax = async (val) => {
+  // UPDATED: Save Tax to Server
+  const handleUpdateTax = async () => {
     try {
-      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}/tax`, { tax_rate: val });
+      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}/tax`, { tax_rate: tempTaxRate });
+      alert("Tax Rate Updated!");
       fetchData();
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error(err); 
+        alert("Update Failed");
+    }
   };
 
-  // --- NEW: Sales Report PDF Function ---
   const downloadPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
@@ -251,12 +261,24 @@ const ManagerDashboard = () => {
         <div className="row g-4">
           <div className="col-md-4">
             <div className="card p-4 border-0 shadow-sm rounded-4">
-              <h6 className="fw-bold">Tax Settings</h6>
-              <div className="input-group mb-2">
-                <input type="number" className="form-control" value={branchInfo?.tax_rate || 0} onChange={(e) => handleUpdateTax(e.target.value)} />
+              <h6 className="fw-bold mb-3">Tax Settings</h6>
+              <div className="input-group mb-3">
+                <input 
+                    type="number" 
+                    className="form-control" 
+                    value={tempTaxRate} 
+                    onChange={(e) => setTempTaxRate(e.target.value)} // Ab typing hogi
+                />
                 <span className="input-group-text">%</span>
               </div>
-              <small className="text-muted">Government Tax (GST).</small>
+              <button 
+                onClick={handleUpdateTax} 
+                className="btn btn-success w-100 rounded-pill shadow-sm"
+              >
+                Save Tax Rate
+              </button>
+              <hr/>
+              <small className="text-muted d-block mt-2">Current Government Tax: {branchInfo?.tax_rate}%</small>
             </div>
           </div>
           <div className="col-md-8">
@@ -265,7 +287,7 @@ const ManagerDashboard = () => {
               <div className="d-flex gap-2 mb-3">
                 <input type="text" className="form-control" placeholder="Area Name" value={newArea.area_name} onChange={(e) => setNewArea({...newArea, area_name: e.target.value})} />
                 <input type="number" className="form-control" placeholder="Fee Rs." value={newArea.fee} onChange={(e) => setNewArea({...newArea, fee: e.target.value})} />
-                <button onClick={handleSaveDeliveryFee} className="btn btn-danger rounded-pill px-4">Add</button>
+                <button onClick={handleSaveDeliveryFee} className="btn btn-danger rounded-pill px-4">Add Area</button>
               </div>
               <table className="table table-sm small">
                 <thead><tr><th>Area Name</th><th>Fee</th><th>Action</th></tr></thead>
