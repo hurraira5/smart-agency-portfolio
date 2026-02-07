@@ -14,16 +14,19 @@ const ProtectedRoute = ({ children, roleRequired }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
 
+  // Agar user nahi hai to login pe bhej do
   if (!token || !user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  // standardizing role check
+  // Database se jo role aa raha hai
   const userRole = user.role.toLowerCase().trim();
   const requiredRole = roleRequired.toLowerCase().trim();
 
+  // Role Match check (Super Admin ke liye DB role 'admin' hai)
   if (userRole !== requiredRole) {
-    return <Navigate to="/" />;
+    console.error(`Role Mismatch! User is ${userRole}, but needs ${requiredRole}`);
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -40,14 +43,14 @@ function App() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/thank-you" element={<ThankYou />} />
         
-        {/* Super Admin Route - Role is 'admin' in DB */}
+        {/* Super Admin Route - Role in DB: 'admin' */}
         <Route path="/super-admin" element={
           <ProtectedRoute roleRequired="admin">
             <SuperAdmin />
           </ProtectedRoute>
         } />
 
-        {/* Manager Dashboard Route - Role is 'manager' in DB */}
+        {/* Manager Dashboard Route - Role in DB: 'manager' */}
         <Route path="/admin" element={
           <ProtectedRoute roleRequired="manager">
             <ManagerDashboard />
