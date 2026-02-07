@@ -9,43 +9,31 @@ import ManagerDashboard from './components/ManagerDashboard';
 import Checkout from './components/Checkout';
 import ThankYou from './components/ThankYou';
 
-// --- PROTECTED ROUTE WITH LIVE SYNC ---
 const ProtectedRoute = ({ children, roleRequired }) => {
   const [isReady, setIsReady] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    // Thora sabar taaki localStorage read ho jaye
-    const checkAuth = () => {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const token = localStorage.getItem('token');
-
-      if (token && user) {
-        const userRole = user.role.toLowerCase().trim();
-        const requiredRole = roleRequired.toLowerCase().trim();
-
-        if (userRole === requiredRole) {
-          setIsAuthorized(true);
-        }
-      }
+    // 500ms delay taaki live server pe localStorage pakka read ho jaye
+    const timer = setTimeout(() => {
       setIsReady(true);
-    };
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
-    checkAuth();
-  }, [roleRequired]);
+  if (!isReady) return <div className="text-center mt-5"><h5>Verifying Session...</h5></div>;
 
-  // Jab tak check ho raha hai, blank screen ya redirect nahi hoga
-  if (!isReady) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{height: '100vh', background: '#f8f9fa'}}>
-        <div className="spinner-border text-warning" role="status">
-          <span className="visually-hidden">Loading Session...</span>
-        </div>
-      </div>
-    );
+  // Login check
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
   }
 
-  if (!isAuthorized) {
+  const userRole = user.role?.toLowerCase().trim();
+  const requiredRole = roleRequired.toLowerCase().trim();
+
+  // Role validation
+  if (userRole !== requiredRole && userRole !== 'admin') { 
     return <Navigate to="/login" replace />;
   }
 
@@ -56,26 +44,28 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Shop />} />
         <Route path="/shop/:id" element={<Shop />} />
         <Route path="/login" element={<Login />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/thank-you" element={<ThankYou />} />
         
-        {/* SUPER ADMIN - DB Role: 'admin' */}
+        {/* Super Admin - Database role 'admin' */}
         <Route path="/super-admin" element={
           <ProtectedRoute roleRequired="admin">
             <SuperAdmin />
           </ProtectedRoute>
         } />
 
-        {/* MANAGER DASHBOARD - DB Role: 'manager' */}
+        {/* Manager Dashboard - Database role 'manager' */}
         <Route path="/admin" element={
           <ProtectedRoute roleRequired="manager">
             <ManagerDashboard />
           </ProtectedRoute>
         } />
 
+        {/* Catch-all route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
