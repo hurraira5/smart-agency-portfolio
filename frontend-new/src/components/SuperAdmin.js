@@ -157,7 +157,7 @@ const SuperAdmin = () => {
       <div className="row g-4">
         <div className="col-lg-4">
           <div className="card p-4 shadow-sm border-0 bg-dark text-white rounded-4 mb-4">
-            <h6 className="text-warning mb-3 fw-bold text-uppercase">1. Register New Brand</h6>
+            <h6 className="text-warning mb-3 fw-bold text-uppercase">1. Register New Brand / Restaurant</h6>
             <form onSubmit={handleAddRestaurant} className="d-flex gap-2">
               <input type="text" className="form-control form-control-sm" placeholder="Enter Brand Name" value={restName} onChange={(e) => setRestName(e.target.value)} required />
               <button className="btn btn-warning btn-sm px-3 fw-bold">Register</button>

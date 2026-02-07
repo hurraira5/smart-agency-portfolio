@@ -8,30 +8,28 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
+      // APNI VERCEL API URL CHECK KAREIN
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
         email: identifier.trim(), 
         password: password.trim()
       });
       
-      // Data save karein
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
 
-      console.log("Login Success, User Role:", res.data.user.role);
+      // Standardizing Role Navigation
+      const role = res.data.user.role;
 
-      // Flash khatam karne ke liye window.location use kar rahe hain
-      if (res.data.user.role === 'admin') {
-        window.location.href = '/super-admin';
-      } else if (res.data.user.role === 'manager') {
-        window.location.href = '/admin';
+      if (role === 'admin') {
+        window.location.assign('/super-admin');
+      } else if (role === 'manager') {
+        window.location.assign('/admin');
       } else {
-        window.location.href = '/';
+        window.location.assign('/');
       }
 
     } catch (err) {
-      console.error("Login Error:", err);
-      const errorMsg = err.response?.data?.message || "Login Failed! Please check credentials.";
-      alert(errorMsg);
+      alert(err.response?.data?.message || "Login Failed! Check credentials.");
     }
   };
 
@@ -41,14 +39,14 @@ const Login = () => {
         <h3 className="text-center mb-4 fw-bold">Restaurant <span className="text-warning">Login</span></h3>
         <form onSubmit={handleLogin}>
           <div className="mb-3">
-            <input type="text" className="form-control shadow-sm" placeholder="Email" 
+            <input type="text" className="form-control" placeholder="Email" 
               onChange={(e) => setIdentifier(e.target.value)} required />
           </div>
           <div className="mb-3">
-            <input type="password" className="form-control shadow-sm" placeholder="Password" 
+            <input type="password" className="form-control" placeholder="Password" 
               onChange={(e) => setPassword(e.target.value)} required />
           </div>
-          <button type="submit" className="btn btn-warning w-100 fw-bold shadow">Sign In</button>
+          <button type="submit" className="btn btn-warning w-100 fw-bold">Sign In</button>
         </form>
       </div>
     </div>

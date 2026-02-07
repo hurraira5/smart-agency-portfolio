@@ -1,64 +1,52 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import axios from 'axios';
 
-// Components Imports
-import Shop from './components/Shop';
-import Login from './components/Login';
-import SuperAdmin from './components/SuperAdmin';
-import ManagerDashboard from './components/ManagerDashboard';
-import Checkout from './components/Checkout';
-import ThankYou from './components/ThankYou';
+const Login = () => {
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
 
-// Protected Route Logic
-const ProtectedRoute = ({ children, roleRequired }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  const token = localStorage.getItem('token');
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      // APNI VERCEL BACKEND URL CHECK KAREIN
+      const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
+        email: identifier.trim(), 
+        password: password.trim()
+      });
+      
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
 
-  // Agar user nahi hai to login pe bhej do
-  if (!token || !user) {
-    return <Navigate to="/login" replace />;
-  }
+      // Direct Redirect (Ye Flash ko kill kar deta hai)
+      if (res.data.user.role === 'admin') {
+        window.location.assign('/super-admin');
+      } else if (res.data.user.role === 'manager') {
+        window.location.assign('/admin');
+      } else {
+        window.location.assign('/');
+      }
 
-  // Database se jo role aa raha hai
-  const userRole = user.role.toLowerCase().trim();
-  const requiredRole = roleRequired.toLowerCase().trim();
+    } catch (err) {
+      alert(err.response?.data?.message || "Login Failed! Check credentials.");
+    }
+  };
 
-  // Role Match check (Super Admin ke liye DB role 'admin' hai)
-  if (userRole !== requiredRole) {
-    console.error(`Role Mismatch! User is ${userRole}, but needs ${requiredRole}`);
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
+  return (
+    <div className="container mt-5 d-flex justify-content-center">
+      <div className="card p-4 shadow-lg border-0" style={{ maxWidth: '400px', width: '100%' }}>
+        <h3 className="text-center mb-4 fw-bold">Restaurant <span className="text-warning">Login</span></h3>
+        <form onSubmit={handleLogin}>
+          <div className="mb-3">
+            <input type="text" className="form-control" placeholder="Email" onChange={(e) => setIdentifier(e.target.value)} required />
+          </div>
+          <div className="mb-3">
+            <input type="password" className="form-control" placeholder="Password" onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          <button type="submit" className="btn btn-warning w-100 fw-bold shadow">Sign In</button>
+        </form>
+      </div>
+    </div>
+  );
 };
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Shop />} />
-        <Route path="/shop/:id" element={<Shop />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/thank-you" element={<ThankYou />} />
-        
-        {/* Super Admin Route - Role in DB: 'admin' */}
-        <Route path="/super-admin" element={
-          <ProtectedRoute roleRequired="admin">
-            <SuperAdmin />
-          </ProtectedRoute>
-        } />
-
-        {/* Manager Dashboard Route - Role in DB: 'manager' */}
-        <Route path="/admin" element={
-          <ProtectedRoute roleRequired="manager">
-            <ManagerDashboard />
-          </ProtectedRoute>
-        } />
-      </Routes>
-    </Router>
-  );
-}
-
-export default App;
+export default Login;
