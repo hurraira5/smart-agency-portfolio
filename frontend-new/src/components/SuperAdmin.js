@@ -121,19 +121,17 @@ const SuperAdmin = () => {
     } catch (err) { alert("Error adding branch."); }
   };
 
-  // --- FIXED MANAGER REGISTRATION LOGIC ---
   const handleAddManager = async (branchId) => {
     const email = prompt("Manager Email:");
     const password = prompt("Manager Password:");
     if (!email || !password) return;
 
     try {
-      // Backend ko correct data format bhej raha hoon
       const response = await axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", {
         username: 'Branch Manager',
         email: email,
         password: password,
-        branch_id: branchId
+        branch_id: parseInt(branchId) // Ensure number bhej rahe hain
       });
 
       if (response.status === 201) {
@@ -142,7 +140,6 @@ const SuperAdmin = () => {
     } catch (err) {
       const errorMsg = err.response?.data?.error || "Database Error: Manager creation failed.";
       alert(errorMsg);
-      console.error("Manager Creation Error:", err.response?.data);
     }
   };
 
@@ -185,7 +182,6 @@ const SuperAdmin = () => {
                   <span className={`badge ${b.status === 'active' ? 'bg-success' : 'bg-danger'} rounded-pill shadow-sm`}>{b.status}</span>
                 </button>
               ))}
-              {selectedRest && branches.length === 0 && <small className="text-center text-muted p-3">Is brand ki koi branch nahi hai.</small>}
             </div>
 
             {selectedRest && (
@@ -266,7 +262,6 @@ const SuperAdmin = () => {
                           <td>{new Date(o.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
                         </tr>
                       ))}
-                      {branchOrders.length === 0 && <tr><td colSpan="5" className="text-center py-5 text-muted">Is branch par abhi tak koi order nahi aaya.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -286,7 +281,7 @@ const SuperAdmin = () => {
                         </form>
                     </div>
                 ) : (
-                    <div className="card p-5 shadow-sm border-0 rounded-4 text-center text-muted bg-white h-100 d-flex align-items-center justify-content-center border-dashed" style={{border: '2px dashed #dee2e6'}}>
+                    <div className="card p-5 shadow-sm border-0 rounded-4 text-center text-muted bg-white h-100 d-flex align-items-center justify-content-center" style={{border: '2px dashed #dee2e6'}}>
                         <div>
                             <div className="display-4 mb-3 opacity-50">📊</div>
                             <h4 className="fw-bold text-dark">Super Admin Dashboard</h4>
