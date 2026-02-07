@@ -18,10 +18,79 @@ const pool = new Pool({
 
 // Root Route
 app.get('/', (req, res) => {
-  res.send("Burger O'Clock API is LIVE with Tax & Delivery Fee Support!");
+  res.send("Smart Agency API is LIVE with Master Control & Restaurant Management!");
 });
 
-// --- 1. ORDERS API ---
+// --- 1. RESTAURANTS & BRANDS (NEW) ---
+
+// Get all brands
+app.get('/api/restaurants', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM restaurants ORDER BY id DESC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Register a new brand
+app.post('/api/restaurants', async (req, res) => {
+  const { name, type } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO restaurants (name, type) VALUES ($1, $2) RETURNING *',
+      [name, type]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get branches for a specific restaurant brand
+app.get('/api/restaurants/:id/branches', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1 ORDER BY id DESC', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 2. BRANCH STATUS & MANAGEMENT (NEW) ---
+
+// Update Branch Status (Active/Inactive)
+app.put('/api/branches/:id/status', async (req, res) => {
+  const { status } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE branches SET status = $1 WHERE id = $2 RETURNING *',
+      [status, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Register New Branch (Connected to Restaurant)
+app.post('/api/branches/register', async (req, res) => {
+  const { branch_name, location, manager_name, contact_number, restaurant_id } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO branches (branch_name, location, manager_name, contact_number, restaurant_id, status) 
+       VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
+      [branch_name, location, manager_name, contact_number, restaurant_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create Manager Login
+app.post('/api/auth/register-manager', async (req, res) => {
+  const { username, email, password, branch_id } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [username, email, password, 'manager', branch_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: "Email already exists or Database Error" }); }
+});
+
+// --- 3. ORDERS API ---
 
 // Get Orders for a specific branch
 app.get('/api/orders/:branch_id', async (req, res) => {
@@ -65,7 +134,7 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
-// Post New Order (Default Payment Method: Cash on Delivery)
+// Post New Order
 app.post('/api/orders', async (req, res) => {
   const { branch_id, customer_name, customer_phone, customer_address, city, items, total_amount, delivery_fee, subtotal } = req.body;
   try {
@@ -80,7 +149,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// --- 2. MENU API ---
+// --- 4. MENU API ---
 
 app.get('/api/menu/:branch_id', async (req, res) => {
   try {
@@ -112,9 +181,8 @@ app.delete('/api/menu/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 3. DELIVERY FEES & TAX SETTINGS (NEW) ---
+// --- 5. DELIVERY FEES & TAX SETTINGS ---
 
-// Get all delivery areas and fees for a branch
 app.get('/api/delivery-fees/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM delivery_fees WHERE branch_id = $1 ORDER BY area_name ASC', [req.params.branch_id]);
@@ -122,7 +190,6 @@ app.get('/api/delivery-fees/:branch_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Add or Update delivery fee for an area
 app.post('/api/delivery-fees', async (req, res) => {
   const { branch_id, area_name, fee } = req.body;
   try {
@@ -137,7 +204,6 @@ app.post('/api/delivery-fees', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Update Branch Tax Percentage
 app.put('/api/branches/:id/tax', async (req, res) => {
   const { tax_rate } = req.body;
   try {
@@ -146,7 +212,7 @@ app.put('/api/branches/:id/tax', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- 4. AUTH & BRANCHES ---
+// --- 6. AUTH & BRANCHES ---
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
