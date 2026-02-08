@@ -33,7 +33,23 @@ const SuperAdmin = () => {
     } catch (err) { alert("Failed"); }
   };
 
-  // --- DELETE ENTIRE BRAND ---
+  // --- NEW: HANDLE ADD BRANCH (This was missing) ---
+  const handleAddBranch = async (e) => {
+    e.preventDefault();
+    if (!selectedRest) return alert("Please select a brand first!");
+    try {
+      await axios.post("https://smart-agency-api.vercel.app/api/branches/register", { 
+        ...branchData, 
+        restaurant_id: selectedRest.id 
+      });
+      alert("Branch Added Successfully! ✅");
+      setBranchData({ branch_name: '', location: '' });
+      // Refresh branch list
+      const res = await axios.get(`https://smart-agency-api.vercel.app/api/restaurants/${selectedRest.id}/branches`);
+      setBranches(res.data || []);
+    } catch (err) { alert("Error adding branch."); }
+  };
+
   const handleDeleteBrand = async (id, name) => {
     if(window.confirm(`⚠️ DANGER: Delete entire brand "${name}" and ALL its branches?`)) {
       try {
@@ -42,23 +58,6 @@ const SuperAdmin = () => {
         setSelectedRest(null); fetchRestaurants();
       } catch (err) { alert("Error deleting brand"); }
     }
-  };
-
-  // --- NEW: HANDLE CREATE BOSS ACCOUNT ---
-  const handleAddBoss = async () => {
-    const email = prompt(`Enter Brand Boss Email for ${selectedRest.name}:`);
-    const pass = prompt("Enter Password:");
-    if (!email || !pass) return;
-    try {
-      await axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", {
-        username: `${selectedRest.name} Boss`,
-        email,
-        password: pass,
-        role: 'boss',
-        branch_id: selectedRest.id 
-      });
-      alert("Brand Boss Account Created Successfully! 👑");
-    } catch (err) { alert("Boss account creation failed"); }
   };
 
   const handleSelectRestaurant = async (e) => {
@@ -101,8 +100,38 @@ const SuperAdmin = () => {
     } catch (err) { alert("Update failed"); }
   };
 
+  // --- NEW FUNCTIONS FOR YOUR BUTTONS ---
+  const handleUpdateBranchStatus = async (branchId, status) => {
+    try {
+      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${branchId}/status`, { status });
+      alert(`Branch status updated to ${status}!`);
+      handleManageBranch({ ...selectedBranch, status });
+    } catch (err) { alert("Status update failed"); }
+  };
+
+  const handleAddBoss = async () => {
+    const email = prompt("Enter Boss Email:");
+    const pass = prompt("Enter Password:");
+    if(!email || !pass) return;
+    try {
+      await axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", { username: 'Boss', email, password: pass, role: 'boss', branch_id: selectedRest.id });
+      alert("Boss Key Issued!");
+    } catch (err) { alert("Failed to issue key"); }
+  };
+
+  const handleIssueManagerKey = async () => {
+    const email = prompt("Enter Manager Email:");
+    const pass = prompt("Enter Password:");
+    if(!email || !pass) return;
+    try {
+      await axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", { username: 'Manager', email, password: pass, role: 'manager', branch_id: selectedBranch.id });
+      alert("Manager Key Issued!");
+    } catch (err) { alert("Failed to issue key"); }
+  };
+
   return (
     <div style={{ backgroundColor: '#F0F2F5', minHeight: '100vh', fontFamily: "'Poppins', sans-serif" }}>
+      {/* HEADER: MANAGEMENT CONSOLE */}
       <nav className="navbar navbar-expand-lg bg-white border-bottom px-4 py-3 sticky-top shadow-sm">
         <div className="container-fluid">
           <span className="navbar-brand fw-bold d-flex align-items-center" style={{ color: '#4e73df' }}>
@@ -114,6 +143,7 @@ const SuperAdmin = () => {
       </nav>
 
       <div className="container-fluid py-4 px-lg-5">
+        {/* VIBRANT STATS ROW */}
         <div className="row g-4 mb-4 text-white">
           <div className="col-md-4">
             <div className="card border-0 shadow-lg rounded-4 p-4" style={{ background: 'linear-gradient(45deg, #6f42c1, #4e73df)' }}>
@@ -186,32 +216,17 @@ const SuperAdmin = () => {
             {selectedBranch ? (
                <div className="card p-4 shadow-sm border-0 rounded-4 bg-white fade-in">
                   <div className="d-flex justify-content-between mb-4 border-bottom pb-3">
-                    <div>
-                        <h4 className="fw-bold text-dark mb-0">{selectedBranch.branch_name}</h4>
-                        <small className="text-muted">📍 {selectedBranch.location}</small>
-                    </div>
-                    {/* FIXED: Added Issue Key Buttons here */}
-                    <div className="d-flex gap-2 align-items-center">
+                    <div><h4 className="fw-bold text-dark mb-0">{selectedBranch.branch_name}</h4><small className="text-muted">📍 {selectedBranch.location}</small></div>
+                    <div className="text-end">
+                      <div className="d-flex gap-2 mb-3 justify-content-end">
+                        <button className={`btn btn-sm rounded-pill px-3 fw-bold ${selectedBranch.status === 'active' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => handleUpdateBranchStatus(selectedBranch.id, 'active')}> Active </button>
+                        <button className={`btn btn-sm rounded-pill px-3 fw-bold ${selectedBranch.status === 'paused' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => handleUpdateBranchStatus(selectedBranch.id, 'paused')}> Pause ⏸️ </button>
+                        <button className={`btn btn-sm rounded-pill px-3 fw-bold ${selectedBranch.status === 'closed' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => handleUpdateBranchStatus(selectedBranch.id, 'closed')}> Close 🛑 </button>
+                      </div>
+                      <div className="d-flex gap-2 justify-content-end">
                         <button onClick={handleAddBoss} className="btn btn-warning rounded-pill px-3 shadow-sm btn-sm fw-bold">Issue Boss Key 👑</button>
-                        <button onClick={() => {
-                            const email = prompt("Manager Email:");
-                            const pass = prompt("Manager Password:");
-                            if(email && pass) axios.post("https://smart-agency-api.vercel.app/api/auth/register-manager", { username: 'Manager', email, password: pass, branch_id: selectedBranch.id }).then(() => alert("Manager Key Issued! 🔑"));
-                        }} className="btn btn-dark rounded-pill px-3 shadow-sm btn-sm">Issue Manager Key 🔑</button>
-                    </div>
-                  </div>
-                  <div className="row g-3 mb-4 text-center">
-                    <div className="col-md-6">
-                        <div className="p-3 rounded-4 bg-light">
-                            <h2 className="fw-bold text-primary mb-0">Rs. {branchOrders.reduce((a, b) => a + Number(b.total_amount), 0).toLocaleString()}</h2>
-                            <small className="text-muted text-uppercase fw-bold" style={{fontSize: '10px'}}>Branch Sales</small>
-                        </div>
-                    </div>
-                    <div className="col-md-6">
-                        <div className="p-3 rounded-4 bg-light">
-                            <h2 className="fw-bold text-dark mb-0">{branchOrders.length}</h2>
-                            <small className="text-muted text-uppercase fw-bold" style={{fontSize: '10px'}}>Total Tickets</small>
-                        </div>
+                        <button onClick={handleIssueManagerKey} className="btn btn-dark rounded-pill px-3 shadow-sm btn-sm fw-bold">Issue Manager Key 🔑</button>
+                      </div>
                     </div>
                   </div>
                   <div className="table-responsive">

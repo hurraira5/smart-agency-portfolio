@@ -9,12 +9,12 @@ const ManagerDashboard = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [deliveryFees, setDeliveryFees] = useState([]);
-  const [newArea, setNewArea] = useState({ area_name: '', fee: '' });
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Inventory & Settings States
   const [foodData, setFoodData] = useState({ name: '', price: '', category: 'Burger' });
-  const [editingFood, setEditingFood] = useState(null);
   const [tempTaxRate, setTempTaxRate] = useState(0);
   const [passwords, setPasswords] = useState({ old: '', new: '' });
+  const [searchTerm, setSearchTerm] = useState('');
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
@@ -22,6 +22,7 @@ const ManagerDashboard = () => {
   useEffect(() => {
     if (user && user.branch_id) {
       fetchData();
+      // Auto-refresh orders every 30 seconds
       const interval = setInterval(fetchOrders, 30000);
       return () => clearInterval(interval);
     } else { navigate('/login'); }
@@ -31,45 +32,78 @@ const ManagerDashboard = () => {
     try {
       const bRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}`);
       setBranchInfo(bRes.data);
-      setTempTaxRate(bRes.data.tax_rate);
+      setTempTaxRate(bRes.data.tax_rate || 0);
+      
       const mRes = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${user.branch_id}`);
-      setMenuItems(mRes.data);
+      setMenuItems(mRes.data || []);
+      
       const dRes = await axios.get(`https://smart-agency-api.vercel.app/api/delivery-fees/${user.branch_id}`);
-      setDeliveryFees(dRes.data);
+      setDeliveryFees(dRes.data || []);
+      
       fetchOrders();
-    } catch (err) { console.error("Data error"); }
+    } catch (err) { console.error("Data fetch error"); }
   };
 
   const fetchOrders = async () => {
     try {
       const oRes = await axios.get(`https://smart-agency-api.vercel.app/api/orders/${user.branch_id}`);
       setOrders(oRes.data || []);
-    } catch (err) { console.error("Order error"); }
+    } catch (err) { console.error("Order fetch error"); }
+  };
+
+  const handleAddFood = async (e) => {
+    e.preventDefault();
+    if (!foodData.name || !foodData.price) return alert("Please fill all fields!");
+    try {
+      await axios.post("https://smart-agency-api.vercel.app/api/menu", {
+        ...foodData,
+        branch_id: user.branch_id
+      });
+      alert("Food Item Added Successfully! 🍔");
+      setFoodData({ name: '', price: '', category: 'Burger' });
+      fetchData();
+    } catch (err) { alert("Error adding food item."); }
+  };
+
+  const handleDeleteFood = async (id) => {
+    if (window.confirm("Remove this item from menu?")) {
+      try {
+        await axios.delete(`https://smart-agency-api.vercel.app/api/menu/${id}`);
+        fetchData();
+      } catch (err) { alert("Delete failed"); }
+    }
   };
 
   const handleUpdateTax = async () => {
     try {
-      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}/tax`, { tax_rate: tempTaxRate });
+      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${user.branch_id}/tax`, { 
+        tax_rate: tempTaxRate 
+      });
       alert("Tax Rate Updated! ✅");
       fetchData();
-    } catch (err) { alert("Failed"); }
+    } catch (err) { alert("Failed to update tax."); }
   };
 
-  const handlePasswordUpdate = async () => {
-    if (!passwords.old || !passwords.new) return alert("Fill all fields");
-    try {
-      const res = await axios.put("https://smart-agency-api.vercel.app/api/auth/update-password", { userId: user.id, oldPassword: passwords.old, newPassword: passwords.new });
-      alert(res.data.message);
-      setPasswords({ old: '', new: '' });
-    } catch (err) { alert("Error"); }
-  };
-
+  // Receipt Printing Logic
   const printReceipt = (order) => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, order.id.toString(), { format: "CODE128", width: 2, height: 40, displayValue: false });
     const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-    const receiptContent = `<html><body style="font-family:'Inter';width:280px;padding:10px;"><h2>MAHANUR MOMOS</h2><p>${branchInfo?.branch_name}</p><center><img src="${canvas.toDataURL()}" /><h4>ID: #${order.id}</h4></center><hr/><table style="width:100%">${items.map(it=>`<tr><td>${it.qty}x ${it.name}</td><td align="right">${it.price*it.qty}</td></tr>`).join('')}</table><hr/><b>TOTAL: Rs. ${order.total_amount}</b><script>window.onload=()=>{window.print();window.close();}</script></body></html>`;
+    
+    const receiptContent = `
+      <html>
+        <body style="font-family:sans-serif; width:280px; padding:10px;">
+          <center><h2>${branchInfo?.branch_name || 'POS'}</h2><p>Order ID: #${order.id}</p></center>
+          <hr/>
+          <table style="width:100%">
+            ${items.map(it => `<tr><td>${it.qty}x ${it.name}</td><td align="right">Rs.${it.price * it.qty}</td></tr>`).join('')}
+          </table>
+          <hr/>
+          <p><b>Total: Rs. ${order.total_amount}</b></p>
+          <center><p>Thank You!</p></center>
+          <script>window.onload=()=>{window.print();window.close();}</script>
+        </body>
+      </html>
+    `;
     printWindow.document.write(receiptContent);
     printWindow.document.close();
   };
@@ -77,42 +111,126 @@ const ManagerDashboard = () => {
   const revenue = orders.filter(o => o.status === 'Accepted').reduce((acc, curr) => acc + Number(curr.total_amount), 0);
 
   return (
-    <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <nav className="navbar navbar-expand-lg border-bottom bg-white px-lg-5 py-3 shadow-sm">
+    <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh', fontFamily: "'Poppins', sans-serif" }}>
+      {/* Navbar */}
+      <nav className="navbar border-bottom bg-white px-lg-5 py-3 shadow-sm sticky-top">
         <div className="container-fluid">
-          <span className="navbar-brand fw-bold text-dark d-flex align-items-center"><div style={{ width: '35px', height: '35px', background: '#6f42c1', borderRadius: '8px', marginRight: '10px' }}></div>Smart POS <span className="text-muted fw-normal ms-2 fs-6">| Manager</span></span>
-          <div className="d-flex align-items-center gap-3"><span className="badge bg-light text-primary border px-3 py-2 rounded-pill small">📍 {branchInfo?.location}</span><button onClick={() => {localStorage.clear(); navigate('/login');}} className="btn btn-link text-danger text-decoration-none fw-bold small">Logout</button></div>
+          <span className="navbar-brand fw-bold text-dark d-flex align-items-center">
+            <div style={{ width: '35px', height: '35px', background: 'linear-gradient(45deg, #6f42c1, #4e73df)', borderRadius: '10px', marginRight: '10px' }}></div>
+            POS MANAGER | <span className="text-muted fw-normal ms-2 fs-6">{branchInfo?.branch_name}</span>
+          </span>
+          <button onClick={() => {localStorage.clear(); navigate('/login');}} className="btn btn-danger btn-sm rounded-pill px-4 fw-bold shadow-sm">Logout 🚪</button>
         </div>
       </nav>
+
       <div className="container-fluid py-4 px-lg-5">
+        {/* Colorful Vibrant Stats Row */}
         <div className="row g-4 mb-4">
-          {[ { label: 'Revenue', val: `Rs. ${revenue.toLocaleString()}`, color: '#4e73df', icon: '💰' }, { label: 'New Orders', val: orders.filter(o=>o.status==='Received').length, color: '#e74a3b', icon: '🛒' }, { label: 'Total Items', val: menuItems.length, color: '#f6c23e', icon: '🍔' }, { label: 'Status', val: branchInfo?.status?.toUpperCase(), color: '#1cc88a', icon: '📈' } ].map((s, i) => (
-            <div className="col-md-3" key={i}><div className="card border-0 shadow-sm rounded-4 p-4 text-white" style={{ background: s.color }}><div className="d-flex justify-content-between align-items-start"><div><p className="mb-1 opacity-75 small fw-bold text-uppercase">{s.label}</p><h3 className="fw-bold mb-0">{s.val}</h3></div><span className="fs-4">{s.icon}</span></div></div></div>
-          ))}
+          <div className="col-md-3"><div className="card border-0 shadow-lg rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #4e73df, #224abe)' }}><h6>Revenue</h6><h3 className="fw-bold">Rs. {revenue.toLocaleString()}</h3></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-lg rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #e74a3b, #c0392b)' }}><h6>New Orders</h6><h3 className="fw-bold">{orders.filter(o => o.status === 'Received').length}</h3></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-lg rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #f6c23e, #f39c12)' }}><h6>Inventory</h6><h3 className="fw-bold">{menuItems.length} Items</h3></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-lg rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #1cc88a, #138d75)' }}><h6>Tax Rate</h6><h3 className="fw-bold">{tempTaxRate}%</h3></div></div>
         </div>
-        <div className="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-white"><div className="d-flex gap-2 bg-light p-1 rounded-3">{['orders', 'menu', 'settings'].map(tab => (<button key={tab} className={`btn rounded-3 px-4 py-2 fw-bold text-capitalize ${activeTab === tab ? 'bg-white shadow-sm text-primary' : 'text-muted border-0'}`} onClick={() => setActiveTab(tab)}>{tab}</button>))}</div></div>
+
+        {/* Tab Switcher */}
+        <div className="card border-0 shadow-sm rounded-4 p-2 mb-4 bg-white">
+          <div className="d-flex gap-2">
+            {['orders', 'menu', 'settings'].map(tab => (
+              <button key={tab} className={`btn rounded-pill px-4 fw-bold text-capitalize transition-all ${activeTab === tab ? 'btn-primary shadow-sm' : 'btn-light text-muted border-0'}`} onClick={() => setActiveTab(tab)}>{tab}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* ORDERS TAB: RECENT SALES */}
         {activeTab === 'orders' && (
           <div className="card border-0 shadow-sm rounded-4 p-4 bg-white">
-            <div className="table-responsive"><table className="table table-hover align-middle"><thead><tr className="text-muted small border-bottom"><th>ORDER ID</th><th>CUSTOMER</th><th>TOTAL</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{orders.filter(o=>o.id.toString().includes(searchTerm)).map(order => (<tr key={order.id}><td className="fw-bold text-primary">#{order.id}</td><td><div className="fw-bold">{order.customer_name}</div></td><td className="fw-bold text-dark">Rs. {order.total_amount}</td><td><span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: order.status === 'Accepted' ? '#d4edda' : '#fff3cd', color: order.status === 'Accepted' ? '#155724' : '#856404' }}>{order.status}</span></td><td><div className="d-flex gap-2">{order.status === 'Received' && (<button onClick={() => axios.put(`https://smart-agency-api.vercel.app/api/orders/${order.id}/status`, { status: 'Accepted' }).then(fetchOrders)} className="btn btn-sm btn-success rounded-3 px-3 border-0">Accept</button>)}<button onClick={() => printReceipt(order)} className="btn btn-sm btn-outline-dark rounded-3 px-3">Print</button></div></td></tr>))}</tbody></table></div>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+               <h5 className="fw-bold mb-0">Live Transactions</h5>
+               <input type="text" className="form-control w-25 rounded-pill bg-light border-0 px-3" placeholder="Search Order ID..." onChange={(e)=>setSearchTerm(e.target.value)} />
+            </div>
+            <div className="table-responsive">
+              <table className="table align-middle">
+                <thead className="table-light"><tr className="small text-muted"><th>ID</th><th>CUSTOMER</th><th>TOTAL</th><th>STATUS</th><th>ACTION</th></tr></thead>
+                <tbody>
+                  {orders.filter(o => o.id.toString().includes(searchTerm)).map(order => (
+                    <tr key={order.id}>
+                      <td className="fw-bold">#{order.id}</td>
+                      <td>{order.customer_name} <br/><small className="text-muted">{order.customer_phone}</small></td>
+                      <td className="fw-bold">Rs. {order.total_amount}</td>
+                      <td><span className={`badge rounded-pill px-3 py-2 ${order.status==='Received'?'bg-warning text-dark':'bg-success'}`}>{order.status}</span></td>
+                      <td>
+                        <div className="d-flex gap-2">
+                          {order.status === 'Received' && <button onClick={() => axios.put(`https://smart-agency-api.vercel.app/api/orders/${order.id}/status`, {status:'Accepted'}).then(fetchOrders)} className="btn btn-sm btn-primary rounded-pill">Accept</button>}
+                          <button onClick={() => printReceipt(order)} className="btn btn-sm btn-outline-dark rounded-pill">Print 🖨️</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
+
+        {/* MENU TAB: CATEGORIES & ADD FOOD */}
         {activeTab === 'menu' && (
           <div className="row g-4">
-            <div className="col-md-4"><div className="card border-0 shadow-sm rounded-4 p-4 bg-white"><h6 className="fw-bold mb-4 text-dark">Add Menu Item</h6><form onSubmit={async (e) => { e.preventDefault(); await axios.post("https://smart-agency-api.vercel.app/api/menu", { ...foodData, branch_id: user.branch_id }); setFoodData({ name: '', price: '', category: 'Burger' }); fetchData(); alert("Added!"); }}><input className="form-control mb-3 rounded-3 bg-light border-0 py-2" placeholder="Item Name" value={foodData.name} onChange={e => setFoodData({...foodData, name: e.target.value})} required /><input className="form-control mb-3 rounded-3 bg-light border-0 py-2" type="number" placeholder="Price" value={foodData.price} onChange={e => setFoodData({...foodData, price: e.target.value})} required /><select className="form-select mb-4 rounded-3 bg-light border-0 py-2" value={foodData.category} onChange={e => setFoodData({...foodData, category: e.target.value})}><option value="Burger">Burger</option><option value="Deal">Deal</option><option value="Drinks">Drinks</option></select><button type="submit" className="btn btn-primary w-100 rounded-3 fw-bold py-2 shadow-sm border-0">Add Item</button></form></div></div>
-            <div className="col-md-8"><div className="card border-0 shadow-sm rounded-4 p-4 bg-white h-100"><table className="table"><thead><tr><th>NAME</th><th>PRICE</th><th>ACTION</th></tr></thead><tbody>{menuItems.map(item => (<tr key={item.id}><td>{item.name}</td><td>Rs. {item.price}</td><td><button onClick={() => setEditingFood(item)} className="btn btn-sm btn-link">Edit</button></td></tr>))}</tbody></table></div></div>
+            <div className="col-lg-4">
+              <div className="card border-0 shadow-sm rounded-4 p-4 bg-white border-top border-primary border-4">
+                <h6 className="fw-bold mb-4">Add Menu Item</h6>
+                <form onSubmit={handleAddFood}>
+                  <div className="mb-3"><label className="small fw-bold text-muted mb-1">Food Name</label><input className="form-control rounded-3 bg-light border-0 py-2" placeholder="e.g. Special Zinger" value={foodData.name} onChange={e => setFoodData({...foodData, name: e.target.value})} required /></div>
+                  <div className="mb-3"><label className="small fw-bold text-muted mb-1">Price (Rs.)</label><input className="form-control rounded-3 bg-light border-0 py-2" type="number" placeholder="500" value={foodData.price} onChange={e => setFoodData({...foodData, price: e.target.value})} required /></div>
+                  <div className="mb-4"><label className="small fw-bold text-muted mb-1">Category</label>
+                    <select className="form-select rounded-3 bg-light border-0 py-2" value={foodData.category} onChange={e => setFoodData({...foodData, category: e.target.value})}>
+                      <option value="Burger">Burger 🍔</option><option value="Pizza">Pizza 🍕</option><option value="Drinks">Drinks 🥤</option><option value="Sides">Sides 🍟</option><option value="Deals">Deals 🎁</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100 rounded-pill fw-bold py-2 shadow-sm border-0">Add Food Item ✅</button>
+                </form>
+              </div>
+            </div>
+            <div className="col-lg-8">
+              <div className="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                <h6 className="fw-bold mb-3">Live Menu Inventory</h6>
+                <div className="table-responsive">
+                  <table className="table align-middle">
+                    <thead className="table-light"><tr className="small text-muted"><th>ITEM NAME</th><th>CATEGORY</th><th>PRICE</th><th>ACTION</th></tr></thead>
+                    <tbody>
+                      {menuItems.map(item => (
+                        <tr key={item.id}>
+                          <td className="fw-bold">{item.name}</td>
+                          <td><span className="badge bg-light text-primary border rounded-pill px-3">{item.category}</span></td>
+                          <td>Rs. {item.price}</td>
+                          <td><button onClick={()=>handleDeleteFood(item.id)} className="btn btn-sm text-danger fw-bold border-0">Remove ✕</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* SETTINGS TAB: TAX FIX */}
         {activeTab === 'settings' && (
           <div className="row g-4">
-             <div className="col-md-6"><div className="card border-0 shadow-sm rounded-4 p-4 bg-white"><h6 className="fw-bold mb-4">Security Center 🔒</h6><input type="password" placeholder="Old" className="form-control mb-2 rounded-3 bg-light border-0 py-2" value={passwords.old} onChange={e => setPasswords({...passwords, old: e.target.value})} /><input type="password" placeholder="New" className="form-control mb-4 rounded-3 bg-light border-0 py-2" value={passwords.new} onChange={e => setPasswords({...passwords, new: e.target.value})} /><button onClick={handlePasswordUpdate} className="btn btn-dark w-100 rounded-3 py-2 fw-bold">Update Password</button></div></div>
-             <div className="col-md-6"><div className="card border-0 shadow-sm rounded-4 p-4 bg-white"><h6 className="fw-bold mb-4">Taxation</h6><div className="input-group mb-4"><input type="number" className="form-control rounded-start-3 bg-light border-0 py-2" value={tempTaxRate} onChange={e => setTempTaxRate(e.target.value)} /><button onClick={handleUpdateTax} className="btn btn-success px-4 rounded-end-3 border-0">Save</button></div></div></div>
+            <div className="col-md-6">
+              <div className="card border-0 shadow-sm rounded-4 p-4 bg-white border-top border-success border-4 h-100">
+                <h6 className="fw-bold mb-3">Branch Configuration</h6>
+                <label className="small fw-bold text-muted mb-1">Tax Rate (%)</label>
+                <div className="input-group mb-3">
+                  <input type="number" className="form-control bg-light border-0 py-2" value={tempTaxRate} onChange={e => setTempTaxRate(e.target.value)} />
+                  <button onClick={handleUpdateTax} className="btn btn-success px-4 fw-bold shadow-sm">Update Tax</button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
-      {editingFood && (
-        <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(5px)'}}><div className="modal-dialog modal-dialog-centered"><div className="modal-content border-0 rounded-4 p-4 shadow-lg"><h5>Edit Item</h5><input type="text" className="form-control mb-3" value={editingFood.name} onChange={e => setEditingFood({...editingFood, name: e.target.value})} /><input type="number" className="form-control mb-4" value={editingFood.price} onChange={e => setEditingFood({...editingFood, price: e.target.value})} /><div className="d-flex gap-2"><button className="btn btn-primary flex-grow-1" onClick={async () => { await axios.put(`https://smart-agency-api.vercel.app/api/menu/${editingFood.id}`, editingFood); setEditingFood(null); fetchData(); }}>Save</button><button className="btn btn-light border flex-grow-1" onClick={() => setEditingFood(null)}>Cancel</button></div></div></div></div>
-      )}
     </div>
   );
 };
+
 export default ManagerDashboard;
