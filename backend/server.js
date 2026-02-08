@@ -44,22 +44,61 @@ app.post('/api/auth/register-manager', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ ADDED: DELETE MANAGER/BOSS ACCOUNT
-app.delete('/api/auth/users/:id', async (req, res) => {
+// ✅ PASSWORD RESET API
+app.put('/api/auth/reset-password', async (req, res) => {
+  const { id, newPass, role } = req.body;
   try {
-    await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
-    res.json({ message: "Account deleted successfully" });
+    // Agar boss hai toh id branch_id ki tarah treat hogi, agar manager hai toh branch_id specific hogi
+    const query = role === 'boss' 
+      ? 'UPDATE users SET password = $1 WHERE role = $2 AND branch_id = $3'
+      : 'UPDATE users SET password = $1 WHERE role = $2 AND branch_id = $3';
+    await pool.query(query, [newPass, role, id]);
+    res.json({ message: "Password updated successfully" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.delete('/api/auth/users/:id/:role', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE branch_id = $1 AND role = $2', [req.params.id, req.params.role]);
+    res.json({ message: "Account deleted successfully" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ==========================================
 // 2. BRANCH & RESTAURANT MANAGEMENT
 // ==========================================
 
-// ✅ ADDED: BRANCH STATUS UPDATE (Active/Paused/Closed)
+// ✅ ADDED: BRAND REGISTRATION (Ye missing tha)
+app.post('/api/restaurants', async (req, res) => {
+  const { name, type } = req.body;
+  try {
+    const result = await pool.query('INSERT INTO restaurants (name, type) VALUES ($1, $2) RETURNING *', [name, type]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ✅ ADDED: REGISTER BRANCH (Ye missing tha)
+app.post('/api/branches/register', async (req, res) => {
+  const { branch_name, location, restaurant_id } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO branches (branch_name, location, restaurant_id, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [branch_name, location, restaurant_id, 'active']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ✅ ADDED: GET BRANCHES BY RESTAURANT (Ye missing tha)
+app.get('/api/restaurants/:id/branches', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1 ORDER BY id ASC', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.put('/api/branches/:id/status', async (req, res) => {
-  const { status } = req.body; // 'active', 'paused', 'closed'
+  const { status } = req.body;
   try {
     await pool.query('UPDATE branches SET status = $1 WHERE id = $2', [status, req.params.id]);
     res.json({ message: `Branch is now ${status}` });
@@ -86,38 +125,33 @@ app.delete('/api/restaurants/:id', async (req, res) => {
 });
 
 // ==========================================
-// 3. ORDERS API (WITH SECURITY CHECK)
+// 3. ORDERS API
 // ==========================================
 
-
-
-app.post('/api/orders', async (req, res) => {
-  const { branch_id, customer_name, customer_phone, customer_address, items, total_amount } = req.body;
-
+// ✅ ADDED: GET ORDERS FOR SUPER ADMIN
+app.get('/api/orders/:branch_id', async (req, res) => {
   try {
-    // 🛡️ SECURITY CHECK: Order block karein agar branch offline hai
-    const branchCheck = await pool.query('SELECT status FROM branches WHERE id = $1', [branch_id]);
-    
-    if (branchCheck.rows.length === 0 || branchCheck.rows[0].status !== 'active') {
-      return res.status(403).json({ 
-        message: "Order Blocked! This branch is currently not accepting orders." 
-      });
-    }
-
-    const transaction_id = generateTxnId();
-    const result = await pool.query(
-      `INSERT INTO orders 
-      (branch_id, customer_name, customer_phone, customer_address, items, total_amount, status, transaction_id, created_at) 
-      VALUES ($1, $2, $3, $4, $5, $6, 'Received', $7, NOW()) RETURNING *`,
-      [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, transaction_id]
-    );
-
-    res.status(201).json(result.rows[0]);
-
+    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
+    res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ... (Baaki saare routes jo pehle se thay) ...
+app.post('/api/orders', async (req, res) => {
+  const { branch_id, customer_name, customer_phone, customer_address, items, total_amount } = req.body;
+  try {
+    const branchCheck = await pool.query('SELECT status FROM branches WHERE id = $1', [branch_id]);
+    if (branchCheck.rows.length === 0 || branchCheck.rows[0].status !== 'active') {
+      return res.status(403).json({ message: "Order Blocked! This branch is currently not accepting orders." });
+    }
+    const transaction_id = generateTxnId();
+    const result = await pool.query(
+      `INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, items, total_amount, status, transaction_id, created_at) 
+      VALUES ($1, $2, $3, $4, $5, $6, 'Received', $7, NOW()) RETURNING *`,
+      [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, transaction_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/', (req, res) => res.send("Smart Agency Enterprise API LIVE"));
 const PORT = process.env.PORT || 5000;
