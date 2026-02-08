@@ -20,20 +20,14 @@ const Admin = () => {
 
   const fetchBossData = async () => {
     try {
-      // 1. Boss jis brand ka hai, uski saari branches lao
       const branchRes = await axios.get(`https://smart-agency-api.vercel.app/api/restaurants/${user.branch_id}/branches`);
       setBranches(branchRes.data);
-
-      // 2. Orders lao (Agar 'all' hai toh saari branches ke, warna specific)
       const url = selectedBranchId === 'all' 
-        ? `https://smart-agency-api.vercel.app/api/boss/orders/${user.branch_id}` // Ye naya route backend pe chahiye hoga
+        ? `https://smart-agency-api.vercel.app/api/boss/orders/${user.branch_id}` 
         : `https://smart-agency-api.vercel.app/api/orders/${selectedBranchId}`;
-      
       const orderRes = await axios.get(url);
       const fetchedOrders = orderRes.data || [];
       setOrders(fetchedOrders);
-
-      // Stats Calculate karein
       const revenue = fetchedOrders.reduce((acc, curr) => acc + Number(curr.total_amount), 0);
       setStats({ totalRevenue: revenue, totalOrders: fetchedOrders.length });
     } catch (err) { console.log("Error fetching boss data"); }
@@ -49,7 +43,6 @@ const Admin = () => {
       </nav>
 
       <div className="container-fluid py-4 px-lg-5">
-        {/* Stats Section */}
         <div className="row g-4 mb-4">
           <div className="col-md-6">
             <div className="card border-0 shadow-sm rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #6f42c1, #4e73df)' }}>
@@ -65,30 +58,26 @@ const Admin = () => {
           </div>
         </div>
 
-        {/* Filter Section */}
         <div className="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-white">
           <div className="d-flex justify-content-between align-items-center">
             <h5 className="fw-bold mb-0">Branch Reports</h5>
-            <select className="form-select w-25 rounded-pill border-0 bg-light" onChange={(e) => setSelectedBranchId(e.target.value)}>
+            <select className="form-select w-25 rounded-pill border-0 bg-light px-3 shadow-none" onChange={(e) => setSelectedBranchId(e.target.value)}>
               <option value="all">All Branches</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Orders Table */}
         <div className="card border-0 shadow-sm rounded-4 p-4 bg-white">
           <div className="table-responsive">
             <table className="table table-hover align-middle">
               <thead className="table-light">
-                <tr className="small text-muted">
-                  <th>TXN ID</th><th>BRANCH</th><th>CUSTOMER</th><th>AMOUNT</th><th>STATUS</th>
-                </tr>
+                <tr className="small text-muted"><th>ORDER ID</th><th>BRANCH</th><th>CUSTOMER</th><th>AMOUNT</th><th>STATUS</th></tr>
               </thead>
               <tbody>
                 {orders.map(o => (
                   <tr key={o.id}>
-                    <td><code className="fw-bold">{o.transaction_id || `#${o.id}`}</code></td>
+                    <td className="fw-bold text-dark">#{o.id}</td>
                     <td className="small">{branches.find(b => b.id === o.branch_id)?.branch_name || 'Branch'}</td>
                     <td>{o.customer_name}</td>
                     <td className="fw-bold text-danger">Rs. {o.total_amount}</td>
@@ -103,5 +92,4 @@ const Admin = () => {
     </div>
   );
 };
-
 export default Admin;
