@@ -1,49 +1,43 @@
-/* Overlay background ko thora blur aur dark karne ke liye */
+/* Animated Modal Overlay */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(5px); /* Background blur effect */
-  display: flex; 
-  align-items: flex-start; /* Niche ke bajaye upar se start hoga */
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
   justify-content: center;
   z-index: 10000;
-  padding-top: 50px; /* Upar se thori jagah */
 }
 
-/* Modal box jo slide ho kar niche aayega */
 .location-modal {
   background: white;
   padding: 30px;
-  border-radius: 0 0 30px 30px; /* Sirf niche ke corners gol */
+  border-radius: 0 0 40px 40px;
   width: 100%;
-  max-width: 600px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  
-  /* Animation: 0.5 second mein upar se niche aayega */
-  animation: slideDown 0.5s ease-out;
+  max-width: 650px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  animation: slideDown 0.6s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @keyframes slideDown {
-  from {
-    transform: translateY(-100%); /* Screen ke upar chupa hua */
-  }
-  to {
-    transform: translateY(0); /* Apni asli jagah par */
-  }
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
 }
 
-/* City Buttons ki styling */
-.city-btn {
+.city-card {
   cursor: pointer;
   border: 2px solid #f0f0f0;
-  padding: 15px;
-  border-radius: 15px;
-  transition: 0.3s;
-  width: 130px;
+  border-radius: 20px;
+  padding: 20px;
+  transition: 0.3s all ease;
+  text-align: center;
 }
 
-.city-btn:hover {
-  border-color: #ffc400;
-  background-color: #fff9e6;
+.city-card:hover, .city-card.active {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+  transform: translateY(-5px);
 }
+
+.city-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
