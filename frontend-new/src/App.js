@@ -6,6 +6,7 @@ import Shop from './components/Shop';
 import Login from './components/Login';
 import SuperAdmin from './components/SuperAdmin';
 import ManagerDashboard from './components/ManagerDashboard';
+import Admin from './components/Admin'; // Ye aapka Boss Panel hai
 import Checkout from './components/Checkout';
 import ThankYou from './components/ThankYou';
 
@@ -15,7 +16,6 @@ const ProtectedRoute = ({ children, roleRequired }) => {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    // 500ms delay taaki live server pe localStorage pakka read ho jaye
     const timer = setTimeout(() => {
       setIsReady(true);
     }, 500);
@@ -24,7 +24,6 @@ const ProtectedRoute = ({ children, roleRequired }) => {
 
   if (!isReady) return <div className="text-center mt-5"><h5>Verifying Session...</h5></div>;
 
-  // Login check
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
@@ -32,8 +31,11 @@ const ProtectedRoute = ({ children, roleRequired }) => {
   const userRole = user.role?.toLowerCase().trim();
   const requiredRole = roleRequired.toLowerCase().trim();
 
-  // Role validation
-  if (userRole !== requiredRole && userRole !== 'admin') { 
+  // Agar user 'admin' (Super Admin) hai toh wo har jagah ja sakta hai
+  // Warna uska role requiredRole se match hona chahiye
+  if (userRole === 'admin') return children;
+  
+  if (userRole !== requiredRole) { 
     return <Navigate to="/login" replace />;
   }
 
@@ -44,24 +46,31 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
+        {/* Customer Face: localhost:3000/ per abhi Shop hai */}
         <Route path="/" element={<Shop />} />
         <Route path="/shop/:id" element={<Shop />} />
         <Route path="/login" element={<Login />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/thank-you" element={<ThankYou />} />
         
-        {/* Super Admin - Database role 'admin' */}
+        {/* 1. Super Admin (Aap ka Panel) */}
         <Route path="/super-admin" element={
           <ProtectedRoute roleRequired="admin">
             <SuperAdmin />
           </ProtectedRoute>
         } />
 
-        {/* Manager Dashboard - Database role 'manager' */}
-        <Route path="/admin" element={
+        {/* 2. Manager Dashboard (Branch Level) */}
+        <Route path="/manager" element={
           <ProtectedRoute roleRequired="manager">
             <ManagerDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* 3. Boss Panel (Brand Owner Level) - Admin.js use karega */}
+        <Route path="/boss-panel" element={
+          <ProtectedRoute roleRequired="boss">
+            <Admin />
           </ProtectedRoute>
         } />
 

@@ -5,42 +5,101 @@ import axios from 'axios';
 const Admin = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('all');
   const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState({ totalRevenue: 0, totalOrders: 0 });
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const res = await axios.get(`https://smart-agency-api.vercel.app/api/orders?branch_id=${user.branch_id}&role=${user.role}`);
-        setOrders(res.data);
-      } catch (err) { console.log("Error fetching orders"); }
-    };
-    fetchOrders();
-  }, [user]);
+    if (!user || user.role !== 'boss') {
+      navigate('/login');
+      return;
+    }
+    fetchBossData();
+  }, [user, selectedBranchId]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+  const fetchBossData = async () => {
+    try {
+      // 1. Boss jis brand ka hai, uski saari branches lao
+      const branchRes = await axios.get(`https://smart-agency-api.vercel.app/api/restaurants/${user.branch_id}/branches`);
+      setBranches(branchRes.data);
+
+      // 2. Orders lao (Agar 'all' hai toh saari branches ke, warna specific)
+      const url = selectedBranchId === 'all' 
+        ? `https://smart-agency-api.vercel.app/api/boss/orders/${user.branch_id}` // Ye naya route backend pe chahiye hoga
+        : `https://smart-agency-api.vercel.app/api/orders/${selectedBranchId}`;
+      
+      const orderRes = await axios.get(url);
+      const fetchedOrders = orderRes.data || [];
+      setOrders(fetchedOrders);
+
+      // Stats Calculate karein
+      const revenue = fetchedOrders.reduce((acc, curr) => acc + Number(curr.total_amount), 0);
+      setStats({ totalRevenue: revenue, totalOrders: fetchedOrders.length });
+    } catch (err) { console.log("Error fetching boss data"); }
   };
 
   return (
-    <div className="container mt-5">
-      <div className="d-flex justify-content-between">
-        <h2>📋 {user?.role.toUpperCase()} Panel</h2>
-        <button onClick={handleLogout} className="btn btn-outline-danger">Logout</button>
+    <div style={{ backgroundColor: '#f4f7fe', minHeight: '100vh', fontFamily: 'Poppins' }}>
+      <nav className="navbar bg-white border-bottom px-4 py-3 shadow-sm">
+        <div className="container-fluid">
+          <span className="navbar-brand fw-bold text-primary">👑 BOSS PANEL <span className="text-muted fw-normal">| {user.username}</span></span>
+          <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="btn btn-danger rounded-pill px-4">Logout</button>
+        </div>
+      </nav>
+
+      <div className="container-fluid py-4 px-lg-5">
+        {/* Stats Section */}
+        <div className="row g-4 mb-4">
+          <div className="col-md-6">
+            <div className="card border-0 shadow-sm rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #6f42c1, #4e73df)' }}>
+              <small className="text-uppercase fw-bold opacity-75">Brand Global Revenue</small>
+              <h2 className="fw-bold mb-0">Rs. {stats.totalRevenue.toLocaleString()}</h2>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div className="card border-0 shadow-sm rounded-4 p-4 text-white" style={{ background: 'linear-gradient(45deg, #11998e, #38ef7d)' }}>
+              <small className="text-uppercase fw-bold opacity-75">Total Transactions</small>
+              <h2 className="fw-bold mb-0">{stats.totalOrders}</h2>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Section */}
+        <div className="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-white">
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="fw-bold mb-0">Branch Reports</h5>
+            <select className="form-select w-25 rounded-pill border-0 bg-light" onChange={(e) => setSelectedBranchId(e.target.value)}>
+              <option value="all">All Branches</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Orders Table */}
+        <div className="card border-0 shadow-sm rounded-4 p-4 bg-white">
+          <div className="table-responsive">
+            <table className="table table-hover align-middle">
+              <thead className="table-light">
+                <tr className="small text-muted">
+                  <th>TXN ID</th><th>BRANCH</th><th>CUSTOMER</th><th>AMOUNT</th><th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id}>
+                    <td><code className="fw-bold">{o.transaction_id || `#${o.id}`}</code></td>
+                    <td className="small">{branches.find(b => b.id === o.branch_id)?.branch_name || 'Branch'}</td>
+                    <td>{o.customer_name}</td>
+                    <td className="fw-bold text-danger">Rs. {o.total_amount}</td>
+                    <td><span className="badge rounded-pill bg-light text-primary border">{o.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <div className="alert alert-warning mt-3">
-        Welcome, <strong>{user?.username}</strong>! Managing Branch ID: {user?.branch_id || "All"}
-      </div>
-      <table className="table mt-4 shadow-sm">
-        <thead className="table-dark">
-          <tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          {orders.map(o => (
-            <tr key={o.id}><td>#{o.id}</td><td>{o.customer_name}</td><td>Rs. {o.total_amount}</td><td>{o.status}</td></tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 };
