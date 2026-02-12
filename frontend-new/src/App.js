@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google'; // Naya Import
 
 // Components Imports
 import Shop from './components/Shop';
@@ -33,7 +34,7 @@ const ProtectedRoute = ({ children, roleRequired }) => {
 
   // Agar user 'admin' (Super Admin) hai toh wo har jagah ja sakta hai
   // Warna uska role requiredRole se match hona chahiye
-  if (userRole === 'admin') return children;
+  if (userRole === 'admin' || userRole === 'superadmin') return children;
   
   if (userRole !== requiredRole) { 
     return <Navigate to="/login" replace />;
@@ -43,41 +44,46 @@ const ProtectedRoute = ({ children, roleRequired }) => {
 };
 
 function App() {
+  // Yahan apni Google Client ID paste karein
+  const googleClientId = "79527190674-p698bufqamlc2vkbla2c702q6t71ain1.apps.googleusercontent.com"; 
+
   return (
-    <Router>
-      <Routes>
-        {/* Customer Face: localhost:3000/ per abhi Shop hai */}
-        <Route path="/" element={<Shop />} />
-        <Route path="/shop/:id" element={<Shop />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/thank-you" element={<ThankYou />} />
-        
-        {/* 1. Super Admin (Aap ka Panel) */}
-        <Route path="/super-admin" element={
-          <ProtectedRoute roleRequired="admin">
-            <SuperAdmin />
-          </ProtectedRoute>
-        } />
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <Router>
+        <Routes>
+          {/* Customer Face: localhost:3000/ per abhi Shop hai */}
+          <Route path="/" element={<Shop />} />
+          <Route path="/shop/:id" element={<Shop />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/thank-you" element={<ThankYou />} />
+          
+          {/* 1. Super Admin (Aap ka Panel) */}
+          <Route path="/super-admin" element={
+            <ProtectedRoute roleRequired="admin">
+              <SuperAdmin />
+            </ProtectedRoute>
+          } />
 
-        {/* 2. Manager Dashboard (Branch Level) */}
-        <Route path="/manager" element={
-          <ProtectedRoute roleRequired="manager">
-            <ManagerDashboard />
-          </ProtectedRoute>
-        } />
+          {/* 2. Manager Dashboard (Branch Level) */}
+          <Route path="/manager" element={
+            <ProtectedRoute roleRequired="manager">
+              <ManagerDashboard />
+            </ProtectedRoute>
+          } />
 
-        {/* 3. Boss Panel (Brand Owner Level) - Admin.js use karega */}
-        <Route path="/boss-panel" element={
-          <ProtectedRoute roleRequired="boss">
-            <Admin />
-          </ProtectedRoute>
-        } />
+          {/* 3. Boss Panel (Brand Owner Level) - Admin.js use karega */}
+          <Route path="/boss-panel" element={
+            <ProtectedRoute roleRequired="boss">
+              <Admin />
+            </ProtectedRoute>
+          } />
 
-        {/* Catch-all route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+          {/* Catch-all route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </GoogleOAuthProvider>
   );
 }
 
