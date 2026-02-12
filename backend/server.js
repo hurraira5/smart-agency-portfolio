@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library'); // Naya import
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Google OAuth Client Setup
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 const generateTxnId = () => {
   const datePart = Date.now().toString(36).toUpperCase(); 
   const randomPart = crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -21,9 +25,65 @@ const generateTxnId = () => {
 };
 
 // ==========================================
-// 1. AUTH & USER MANAGEMENT
+// 1. AUTH & USER MANAGEMENT (SYNCED)
 // ==========================================
 
+// ✅ NEW: GOOGLE LOGIN API (4-in-1 Sync)
+app.post('/api/auth/google', async (req, res) => {
+    const { token } = req.body;
+    try {
+        // 1. Google Token Verify
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const { email, name, picture } = ticket.getPayload();
+
+        // 2. DB Check & Sync
+        let userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+        let user;
+
+        if (userResult.rows.length === 0) {
+            // Naya user (Default: customer)
+            const newUser = await pool.query(
+                'INSERT INTO users (username, email, role, profile_pic, password) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+                [name, email, 'customer', picture, 'google-auth-no-pass']
+            );
+            user = newUser.rows[0];
+        } else {
+            // Purana user (Profile update)
+            const updatedUser = await pool.query(
+                'UPDATE users SET profile_pic = $1 WHERE email = $2 RETURNING *',
+                [picture, email]
+            );
+            user = updatedUser.rows[0];
+        }
+
+        // 3. JWT Generate (Wahi logic jo login mein hai)
+        const jwtToken = jwt.sign(
+            { id: user.id, role: user.role, branch_id: user.branch_id }, 
+            process.env.JWT_SECRET || 'admin123', 
+            { expiresIn: '7d' }
+        );
+
+        res.json({ 
+            token: jwtToken, 
+            user: { 
+                id: user.id, 
+                username: user.username, 
+                role: user.role.toLowerCase().trim(), 
+                branch_id: user.branch_id,
+                profile_pic: user.profile_pic 
+            } 
+        });
+
+    } catch (error) {
+        console.error("Google Auth Error:", error);
+        res.status(401).json({ error: "Google verification failed" });
+    }
+});
+
+// ✅ MANUAL LOGIN (Original)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -44,14 +104,10 @@ app.post('/api/auth/register-manager', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ PASSWORD RESET API
 app.put('/api/auth/reset-password', async (req, res) => {
   const { id, newPass, role } = req.body;
   try {
-    // Agar boss hai toh id branch_id ki tarah treat hogi, agar manager hai toh branch_id specific hogi
-    const query = role === 'boss' 
-      ? 'UPDATE users SET password = $1 WHERE role = $2 AND branch_id = $3'
-      : 'UPDATE users SET password = $1 WHERE role = $2 AND branch_id = $3';
+    const query = 'UPDATE users SET password = $1 WHERE role = $2 AND branch_id = $3';
     await pool.query(query, [newPass, role, id]);
     res.json({ message: "Password updated successfully" });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -68,7 +124,6 @@ app.delete('/api/auth/users/:id/:role', async (req, res) => {
 // 2. BRANCH & RESTAURANT MANAGEMENT
 // ==========================================
 
-// ✅ ADDED: BRAND REGISTRATION (Ye missing tha)
 app.post('/api/restaurants', async (req, res) => {
   const { name, type } = req.body;
   try {
@@ -77,7 +132,6 @@ app.post('/api/restaurants', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ ADDED: REGISTER BRANCH (Ye missing tha)
 app.post('/api/branches/register', async (req, res) => {
   const { branch_name, location, restaurant_id } = req.body;
   try {
@@ -89,7 +143,6 @@ app.post('/api/branches/register', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ ADDED: GET BRANCHES BY RESTAURANT (Ye missing tha)
 app.get('/api/restaurants/:id/branches', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1 ORDER BY id ASC', [req.params.id]);
@@ -128,7 +181,6 @@ app.delete('/api/restaurants/:id', async (req, res) => {
 // 3. ORDERS API
 // ==========================================
 
-// ✅ ADDED: GET ORDERS FOR SUPER ADMIN
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
