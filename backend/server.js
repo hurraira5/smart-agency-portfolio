@@ -58,6 +58,25 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
+// --- BRANCH CONFIGURATION (DYNAMIC THEME & PAYMENTS) ---
+app.put('/api/branches/:id/config', async (req, res) => {
+  const { theme_color, is_cod_enabled, is_online_enabled, payment_api_key, delivery_fee, tax_percentage } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE branches SET 
+        theme_color = $1, 
+        is_cod_enabled = $2, 
+        is_online_enabled = $3, 
+        payment_api_key = $4,
+        delivery_fee = $5,
+        tax_percentage = $6
+      WHERE id = $7 RETURNING *`,
+      [theme_color, is_cod_enabled, is_online_enabled, payment_api_key, delivery_fee, tax_percentage, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // --- MENU & BRANCHES ---
 app.post('/api/menu', async (req, res) => {
   const { branch_id, name, price, category, description, image_url } = req.body;
@@ -101,7 +120,10 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
 app.post('/api/branches/register', async (req, res) => {
   const { branch_name, location, restaurant_id } = req.body;
   try {
-    const result = await pool.query('INSERT INTO branches (branch_name, location, restaurant_id, status) VALUES ($1, $2, $3, $4) RETURNING *', [branch_name, location, restaurant_id, 'active']);
+    const result = await pool.query(
+      'INSERT INTO branches (branch_name, location, restaurant_id, status, theme_color) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
+      [branch_name, location, restaurant_id, 'active', '#b3001b']
+    );
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
