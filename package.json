@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "bootstrap": "^5.3.8",
-    "lucide-react": "^0.563.0"
+    "framer-motion": "^12.34.0",
+    "lucide-react": "^0.563.0",
+    "react-icons": "^5.5.0"
   }
 }

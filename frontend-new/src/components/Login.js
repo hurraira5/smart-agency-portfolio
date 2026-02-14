@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { GoogleLogin } from '@react-oauth/google'; // Naya import
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
-  // --- GOOGLE LOGIN HANDLER (FULL-STACK SYNC) ---
   const handleGoogleSuccess = async (response) => {
     try {
+      console.log("Google Token Received:", response.credential);
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/google", {
         token: response.credential
       });
@@ -23,7 +23,6 @@ const Login = () => {
     }
   };
 
-  // Redirection Logic (Common for both)
   const redirectUser = (userRole) => {
     const role = userRole.toLowerCase().trim();
     if (role === 'admin' || role === 'superadmin') {
@@ -40,18 +39,15 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Backend API Call
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
         email: identifier.trim(), 
         password: password.trim()
       });
       
-      // Data ko LocalStorage mein save karein
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
 
       redirectUser(res.data.user.role);
-
     } catch (err) {
       console.error("Login Error:", err);
       alert(err.response?.data?.message || "Login Failed! Check credentials.");
@@ -98,20 +94,21 @@ const Login = () => {
           </button>
         </form>
 
-        {/* OR Divider */}
         <div className="d-flex align-items-center my-3">
           <hr className="flex-grow-1" />
           <span className="mx-2 text-muted small">OR</span>
           <hr className="flex-grow-1" />
         </div>
 
-        {/* --- GOOGLE LOGIN BUTTON SECTION --- */}
-        <div className="d-flex justify-content-center">
+        {/* --- FIXED GOOGLE LOGIN SECTION --- */}
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
           <GoogleLogin 
             onSuccess={handleGoogleSuccess} 
-            onError={() => alert("Google Login Failed")}
+            onError={() => console.log("Login Failed")}
+            useOneTap
             theme="filled_blue"
             shape="pill"
+            width="320"
           />
         </div>
 
