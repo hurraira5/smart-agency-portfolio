@@ -61,7 +61,7 @@ function App() {
 
           <Route path="/manager" element={
             <ProtectedRoute roleRequired="manager">
-              <ManagerDashboard />
+              <SuperAdmin /> {/* Manager ke liye SuperAdmin dashboard ya manager ka apna component */}
             </ProtectedRoute>
           } />
 
