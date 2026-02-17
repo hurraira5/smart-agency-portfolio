@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { FaStore, FaCog, FaUsers, FaChartPie, FaPalette, FaTag, FaPowerOff, FaCopy, FaExternalLinkAlt, FaMapMarkerAlt, FaUtensils, FaPlus } from 'react-icons/fa';
+import { FaStore, FaCog, FaUsers, FaChartPie, FaPalette, FaTag, FaPowerOff, FaCopy, FaExternalLinkAlt, FaMapMarkerAlt, FaUtensils, FaPlus, FaTrash, FaTicketAlt, FaImage } from 'react-icons/fa';
 
 const SuperAdmin = () => {
   const [restaurants, setRestaurants] = useState([]);
@@ -16,6 +16,8 @@ const SuperAdmin = () => {
   const [masterAreas, setMasterAreas] = useState([]); 
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]); 
+  const [vouchers, setVouchers] = useState([]); // Naya state
+  const [newVoucher, setNewVoucher] = useState({ code: '', discount: '', min: '' }); // Naya state
   const [newCat, setNewCat] = useState('');
   const [menuData, setMenuData] = useState({ name: '', price: '', category: '', description: '', image_url: '' });
 
@@ -26,106 +28,94 @@ const SuperAdmin = () => {
 
   const navigate = useNavigate();
 
-  // --- UPDATED fetchData (Safety added for 404) ---
   const fetchData = useCallback(async () => {
     try {
       const res = await axios.get("https://smart-agency-api.vercel.app/api/restaurants");
       setRestaurants(res.data || []);
-      
       const masterAreaRes = await axios.get("https://smart-agency-api.vercel.app/api/delivery-areas/master").catch(() => ({ data: [] }));
       setMasterAreas(masterAreaRes.data || []);
-    } catch (err) {
-      console.log("Initial fetch error - Check Backend");
-    }
+    } catch (err) { console.log("Fetch error"); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // --- UPDATED handleSelectBranch (Safety added for 404) ---
   const handleSelectBranch = async (branch) => {
     setSelectedBranch(branch);
-    setConfig({
-      theme_color: branch.theme_color || '#b3001b',
-      is_cod_enabled: branch.is_cod_enabled ?? true,
-      is_online_enabled: branch.is_online_enabled ?? false,
-      delivery_fee: branch.delivery_fee || 0,
-      tax_percentage: branch.tax_percentage || 0,
-      status: branch.status || 'active',
-      discount_global: branch.discount_global || 0
-    });
+    setConfig({ ...branch });
     
     try {
       axios.get(`https://smart-agency-api.vercel.app/api/orders/${branch.id}`).then(res => {
         const orders = res.data || [];
         setAnalytics({ total: orders.reduce((acc, curr) => acc + Number(curr.total_amount), 0), count: orders.length });
-      }).catch(() => console.log("Orders 404"));
-
-      axios.get(`https://smart-agency-api.vercel.app/api/branches/${branch.id}/delivery-areas`).then(res => setDeliveryAreas(res.data || [])).catch(() => console.log("Areas 404"));
-      axios.get(`https://smart-agency-api.vercel.app/api/menu/${branch.id}`).then(res => setMenuItems(res.data || [])).catch(() => console.log("Menu 404"));
-      axios.get(`https://smart-agency-api.vercel.app/api/branches/${branch.id}/categories`).then(res => setCategories(res.data || [])).catch(() => console.log("Categories 404"));
-
+      });
+      axios.get(`https://smart-agency-api.vercel.app/api/branches/${branch.id}/delivery-areas`).then(res => setDeliveryAreas(res.data || []));
+      axios.get(`https://smart-agency-api.vercel.app/api/menu/${branch.id}`).then(res => setMenuItems(res.data || []));
+      axios.get(`https://smart-agency-api.vercel.app/api/branches/${branch.id}/categories`).then(res => setCategories(res.data || []));
+      axios.get(`https://smart-agency-api.vercel.app/api/branches/${branch.id}/vouchers`).then(res => setVouchers(res.data || []));
     } catch (err) { console.error(err); }
   };
 
   const handleAddCategory = async () => {
     if (!newCat) return;
-    try {
-      await axios.post("https://smart-agency-api.vercel.app/api/categories", { branch_id: selectedBranch.id, name: newCat });
-      setNewCat('');
-      const catRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${selectedBranch.id}/categories`);
-      setCategories(catRes.data || []);
-      alert("Category Created!");
-    } catch (err) { alert("Category add failed - Check Database"); }
+    await axios.post("https://smart-agency-api.vercel.app/api/categories", { branch_id: selectedBranch.id, name: newCat });
+    setNewCat('');
+    handleSelectBranch(selectedBranch);
+  };
+
+  const handleAddVoucher = async () => {
+    if (!newVoucher.code) return;
+    await axios.post("https://smart-agency-api.vercel.app/api/vouchers", { 
+        branch_id: selectedBranch.id, 
+        code: newVoucher.code, 
+        discount_amount: newVoucher.discount, 
+        min_order: newVoucher.min 
+    });
+    setNewVoucher({ code: '', discount: '', min: '' });
+    handleSelectBranch(selectedBranch);
+  };
+
+  const handleDeleteItem = async (id) => {
+    if (window.confirm("Bhai, confirm delete?")) {
+      await axios.delete(`https://smart-agency-api.vercel.app/api/menu/${id}`);
+      handleSelectBranch(selectedBranch);
+    }
   };
 
   const handleUpdateAreaFee = async (areaName, fee) => {
     if(!areaName) return;
-    try {
-      await axios.post(`https://smart-agency-api.vercel.app/api/branches/delivery-areas/sync`, { 
-        branch_id: selectedBranch.id, area_name: areaName, fee: fee 
-      });
-      const areaRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${selectedBranch.id}/delivery-areas`);
-      setDeliveryAreas(areaRes.data || []);
-    } catch (err) { alert("Area sync failed"); }
+    await axios.post(`https://smart-agency-api.vercel.app/api/branches/delivery-areas/sync`, { branch_id: selectedBranch.id, area_name: areaName, fee: fee });
+    handleSelectBranch(selectedBranch);
   };
 
   const handleSuperMenuAdd = async (e) => {
     e.preventDefault();
-    if (!menuData.category) return alert("Bhai, Category pehle select ya create karo!");
-    try {
-      await axios.post("https://smart-agency-api.vercel.app/api/menu", { ...menuData, branch_id: selectedBranch.id });
-      setMenuData({ name: '', price: '', category: menuData.category, description: '', image_url: '' });
-      const menuRes = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${selectedBranch.id}`);
-      setMenuItems(menuRes.data || []);
-      alert("Item Added!");
-    } catch (err) { alert("Menu add failed"); }
+    if (!menuData.category) return alert("Bhai, Category select karo!");
+    await axios.post("https://smart-agency-api.vercel.app/api/menu", { ...menuData, branch_id: selectedBranch.id });
+    setMenuData({ name: '', price: '', category: menuData.category, description: '', image_url: '' });
+    handleSelectBranch(selectedBranch);
   };
 
   const handleUpdateConfig = async () => {
-    setLoading(true);
-    try {
-      await axios.put(`https://smart-agency-api.vercel.app/api/branches/${selectedBranch.id}/config`, config);
-      alert("Configuration Saved!");
-    } catch (err) { alert("Save failed"); }
-    finally { setLoading(false); }
+    await axios.put(`https://smart-agency-api.vercel.app/api/branches/${selectedBranch.id}/config`, config);
+    alert("Saved!");
   };
 
   const copyShopLink = () => {
     const link = `${window.location.origin}/shop/${selectedBranch.id}`;
     navigator.clipboard.writeText(link);
-    alert("Shop Link Copied!");
+    alert("Copied!");
   };
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar: Same UI as your best code */}
+      {/* Sidebar - Same UI */}
       <div className="w-80 bg-white border-r flex flex-col shadow-xl z-30">
         <div className="p-8 border-b">
            <div className="text-2xl font-black text-slate-800 tracking-tighter">SMART.ADMIN</div>
            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Enterprise Control Panel</p>
         </div>
         <div className="p-6 space-y-6 overflow-y-auto flex-grow">
-           <select className="w-full p-4 bg-slate-100 rounded-2xl border-none font-bold outline-none" onChange={(e) => {
+           <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none" onChange={(e) => {
              const r = restaurants.find(res => res.id == e.target.value);
              if(!r) return;
              setSelectedRest(r);
@@ -151,15 +141,9 @@ const SuperAdmin = () => {
         {selectedBranch ? (
           <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
             <div className="flex justify-between items-end">
-               <div>
-                  <h1 className="text-4xl font-black text-slate-800">{selectedBranch.branch_name}</h1>
-                  <div className="flex items-center gap-4 mt-2">
-                     <button onClick={copyShopLink} className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:underline"><FaCopy/> Copy Shop URL</button>
-                     <a href={`/shop/${selectedBranch.id}`} target="_blank" className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-800"><FaExternalLinkAlt/> Preview Shop</a>
-                  </div>
-               </div>
+               <h1 className="text-4xl font-black text-slate-800">{selectedBranch.branch_name}</h1>
                <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-slate-200">
-                  {['dashboard', 'config', 'delivery', 'menu'].map(tab => (
+                  {['dashboard', 'config', 'delivery', 'menu', 'vouchers'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-xl font-black text-sm capitalize transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{tab}</button>
                   ))}
                </div>
@@ -188,6 +172,28 @@ const SuperAdmin = () => {
                </div>
             )}
 
+            {/* Vouchers Tab */}
+            {activeTab === 'vouchers' && (
+              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+                <h3 className="font-black text-xl flex items-center gap-3"><FaTicketAlt className="text-blue-600"/> Discount Vouchers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                   <input className="p-4 bg-slate-50 rounded-2xl font-black outline-none border" placeholder="Code (e.g. SAVE50)" value={newVoucher.code} onChange={e => setNewVoucher({...newVoucher, code: e.target.value})} />
+                   <input className="p-4 bg-slate-50 rounded-2xl font-black outline-none border" placeholder="Discount Rs." type="number" value={newVoucher.discount} onChange={e => setNewVoucher({...newVoucher, discount: e.target.value})} />
+                   <input className="p-4 bg-slate-50 rounded-2xl font-black outline-none border" placeholder="Min Order" type="number" value={newVoucher.min} onChange={e => setNewVoucher({...newVoucher, min: e.target.value})} />
+                   <button onClick={handleAddVoucher} className="bg-blue-600 text-white rounded-2xl font-black shadow-lg">ADD VOUCHER</button>
+                </div>
+                <div className="space-y-3">
+                  {vouchers.map(v => (
+                    <div key={v.id} className="flex justify-between items-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                       <span className="font-black text-blue-600">{v.code}</span>
+                       <span className="font-bold text-slate-500">OFF Rs. {v.discount_amount} (Min: {v.min_order})</span>
+                       <button onClick={() => axios.delete(`https://smart-agency-api.vercel.app/api/vouchers/${v.id}`).then(()=>handleSelectBranch(selectedBranch))} className="text-red-400 hover:text-red-600"><FaTrash/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeTab === 'delivery' && (
               <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
                 <h3 className="font-black text-xl mb-6 flex items-center gap-3"><FaMapMarkerAlt className="text-blue-600"/> Master Area Delivery Management</h3>
@@ -208,7 +214,6 @@ const SuperAdmin = () => {
                       <span className="font-black text-blue-600">Rs. {area.fee}</span>
                     </div>
                   ))}
-                  {deliveryAreas.length === 0 && <p className="text-center text-slate-400 py-10 font-bold">No area fees synced yet.</p>}
                 </div>
               </div>
             )}
@@ -232,18 +237,28 @@ const SuperAdmin = () => {
                       </select>
                       <input className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none" placeholder="Item Name" value={menuData.name} onChange={e => setMenuData({...menuData, name: e.target.value})} required />
                       <input className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none" placeholder="Price" value={menuData.price} onChange={e => setMenuData({...menuData, price: e.target.value})} required />
-                      <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-black transition-all">ADD TO BRANCH MENU</button>
+                      <div className="relative">
+                        <FaImage className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                        <input className="w-full p-4 pl-12 bg-slate-50 rounded-2xl font-black outline-none border-2 border-dashed border-blue-100" placeholder="Image URL" value={menuData.image_url} onChange={e => setMenuData({...menuData, image_url: e.target.value})} />
+                      </div>
+                      <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl">ADD TO BRANCH MENU</button>
                     </form>
                   </div>
                 </div>
                 <div className="lg:col-span-7 bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 max-h-[650px] overflow-y-auto no-scrollbar">
                      {menuItems.map(item => (
                        <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl mb-2">
-                          <div>
-                            <span className="font-black text-slate-700 block">{item.name}</span>
-                            <span className="text-[10px] font-black text-blue-500 uppercase">{item.category}</span>
+                          <div className="flex items-center gap-4">
+                             <img src={item.image_url || 'https://via.placeholder.com/50'} className="w-12 h-12 rounded-xl object-cover" alt="" />
+                             <div>
+                                <span className="font-black text-slate-700 block">{item.name}</span>
+                                <span className="text-[10px] font-black text-blue-500 uppercase">{item.category}</span>
+                             </div>
                           </div>
-                          <span className="font-black text-slate-800">Rs. {item.price}</span>
+                          <div className="flex items-center gap-4">
+                             <span className="font-black text-slate-800">Rs. {item.price}</span>
+                             <button onClick={() => handleDeleteItem(item.id)} className="text-red-400 hover:text-red-600 transition-all"><FaTrash/></button>
+                          </div>
                        </div>
                      ))}
                 </div>
