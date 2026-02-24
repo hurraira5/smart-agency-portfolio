@@ -1,268 +1,219 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { FaMapMarkerAlt, FaSearch, FaPhoneAlt, FaChevronRight, FaShoppingCart, FaTimes, FaPlus, FaMinus, FaUtensils } from 'react-icons/fa';
-import EntryModal from './EntryModal'; // Import Naya Fuse Style Modal
+import { 
+  FaShoppingBasket, FaPlus, FaMinus, FaSearch, 
+  FaChevronRight, FaMapMarkerAlt, FaTimes 
+} from 'react-icons/fa';
 
 const Shop = () => {
-  const [menuItems, setMenuItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [loading, setLoading] = useState(false);
-  const [branchStatus, setBranchStatus] = useState('active');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  
-  // Fuse.pk Style States
-  const [showEntryModal, setShowEntryModal] = useState(!localStorage.getItem('user_area'));
-  const [restaurantTheme, setRestaurantTheme] = useState('#b3001b'); // Default Red
-  const [restaurantInfo, setRestaurantInfo] = useState({ name: "FOODIE'S HUB" });
-
-  const [cart, setCart] = useState([]);
+  const { branchId } = useParams();
   const navigate = useNavigate();
-  const { id } = useParams();
-  const [currentBranch, setCurrentBranch] = useState(JSON.parse(localStorage.getItem('activeBranch')) || null);
+  
+  const [branch, setBranch] = useState(null);
+  const [menu, setMenu] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [activeCat, setActiveCat] = useState('All');
+  const [showCart, setShowCart] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Set Theme Variables
   useEffect(() => {
-    document.documentElement.style.setProperty('--primary-color', restaurantTheme);
-  }, [restaurantTheme]);
-
-  useEffect(() => {
-    const branchIdToLoad = id || (currentBranch ? currentBranch.id : null);
-    if (branchIdToLoad) fetchMenuAndStatus(branchIdToLoad);
-  }, [id, currentBranch]);
-
-  const fetchMenuAndStatus = async (branchId) => {
-    try {
-      setLoading(true);
-      const branchRes = await axios.get(`https://smart-agency-api.vercel.app/api/branches/${branchId}`);
-      setBranchStatus(branchRes.data.status || 'active');
-      setRestaurantTheme(branchRes.data.theme_color || '#b3001b'); // Dynamic Color
-      setRestaurantInfo({ name: branchRes.data.restaurant_name || "FOODIE'S HUB" });
-      
-      const res = await axios.get(`https://smart-agency-api.vercel.app/api/menu/${branchId}`);
-      setMenuItems(res.data || []);
-      setCategories(['All', ...new Set((res.data || []).map(item => item.category))]);
-      setLoading(false);
-    } catch (err) { setLoading(false); }
-  };
-
-  const handleEntryConfirm = (data) => {
-    localStorage.setItem('user_area', data.location);
-    localStorage.setItem('order_type', data.orderType);
-    localStorage.setItem('user_phone', data.phone);
-    setShowEntryModal(false);
-  };
+    // Branch aur Menu ka Data Fetching
+    axios.get(`https://smart-agency-api.vercel.app/api/branches/${branchId}`).then(res => setBranch(res.data));
+    axios.get(`https://smart-agency-api.vercel.app/api/menu/${branchId}`).then(res => setMenu(res.data));
+    axios.get(`https://smart-agency-api.vercel.app/api/branches/${branchId}/categories`).then(res => setCategories(res.data));
+  }, [branchId]);
 
   const addToCart = (item) => {
-    if (branchStatus !== 'active') return;
-    setCart(prev => {
-      const exist = prev.find(i => i.id === item.id);
-      if (exist) return prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...item, qty: 1 }];
-    });
-    setSelectedItem(null);
+    const exist = cart.find(x => x.id === item.id);
+    if (exist) {
+      setCart(cart.map(x => x.id === item.id ? { ...exist, qty: exist.qty + 1 } : x));
+    } else {
+      setCart([...cart, { ...item, qty: 1 }]);
+    }
   };
 
   const removeFromCart = (item) => {
-    setCart(prev => {
-      const exist = prev.find(i => i.id === item.id);
-      if (exist.qty === 1) return prev.filter(i => i.id !== item.id);
-      return prev.map(i => i.id === item.id ? { ...i, qty: i.qty - 1 } : i);
-    });
+    const exist = cart.find(x => x.id === item.id);
+    if (exist.qty === 1) {
+      setCart(cart.filter(x => x.id !== item.id));
+    } else {
+      setCart(cart.map(x => x.id === item.id ? { ...exist, qty: exist.qty - 1 } : x));
+    }
   };
 
-  const filteredItems = menuItems.filter(item => 
-    (activeCategory === 'All' || item.category === activeCategory) &&
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const totalPrice = cart.reduce((a, c) => a + c.price * c.qty, 0);
+
+  // Naye Checkout Page par janay ka logic
+  const goToCheckout = () => {
+    if (cart.length === 0) {
+      alert("Bhai, pehle kuch select toh kar lo! 🍔");
+      return;
+    }
+    // Data save kar rahe hain taaki Checkout page utha sakay
+    localStorage.setItem('cart', JSON.stringify(cart));
+    localStorage.setItem('currentBranch', JSON.stringify(branch));
+    navigate('/checkout');
+  };
+
+  if (!branch) return (
+    <div className="h-screen flex items-center justify-center font-black italic text-2xl animate-pulse text-red-600 tracking-tighter">
+      SMART LOADING...
+    </div>
   );
 
   return (
-    <div className="shop-wrapper">
+    <div className="min-h-screen bg-gray-50 font-sans pb-32">
       
-      {/* 🚀 FUSE ENTRY MODAL */}
-      <EntryModal 
-        isOpen={showEntryModal} 
-        onConfirm={handleEntryConfirm} 
-        brandName={restaurantInfo.name}
-      />
-
-      {/* NAVBAR */}
-      <nav className="navbar navbar-expand-lg sticky-top bg-white/80 backdrop-blur-md border-b">
-        <div className="container px-4 py-2">
-          <div className="d-flex align-items-center gap-3">
-             <div className="brand-logo-small bg-primary-dynamic">
-                <FaUtensils className="text-white" />
-             </div>
-             <h4 className="fw-black mb-0 tracking-tighter text-dark">{restaurantInfo.name}</h4>
-          </div>
-
-          <div className="mx-auto d-none d-lg-flex max-w-md w-full px-4">
-             <div className="search-box-fuse">
-                <FaSearch className="text-muted" />
-                <input 
-                  type="text" 
-                  placeholder="What are you craving?" 
-                  onChange={(e) => setSearchTerm(e.target.value)} 
-                />
-             </div>
-          </div>
-
-          <div className="d-flex gap-3 align-items-center">
-             <div onClick={() => setIsCartOpen(true)} className="cart-trigger">
-                <FaShoppingCart />
-                {cart.length > 0 && <span className="cart-count">{cart.length}</span>}
-             </div>
-             <button className="btn-signin">SIGN IN</button>
-          </div>
+      {/* 1. HEADER */}
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-100 p-6 flex justify-between items-center shadow-sm">
+        <div>
+          <h1 className="text-2xl font-black tracking-tighter uppercase italic" style={{ color: branch.theme_color }}>
+            {branch.branch_name}
+          </h1>
+          <p className="text-[10px] font-black text-gray-400 flex items-center gap-1 uppercase tracking-widest mt-1">
+            <FaMapMarkerAlt /> Open for Delivery
+          </p>
         </div>
-      </nav>
-
-      {/* CATEGORY BAR (Horizontal Scroll - Fuse Style) */}
-      <div className="category-scroller sticky-top-after-nav">
-        <div className="container px-4">
-          <div className="d-flex gap-2 overflow-auto no-scrollbar py-3">
-            {categories.map((cat) => (
-              <button 
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`cat-pill ${activeCategory === cat ? 'active' : ''}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="container py-4 px-4">
-        <div className="row g-4">
-          {filteredItems.length === 0 && !loading && (
-            <div className="text-center py-5">
-              <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="120" className="opacity-20 mb-3" />
-              <h5 className="text-muted fw-bold">No items found matching "{searchTerm}"</h5>
-            </div>
+        <button onClick={() => setShowCart(true)} className="w-14 h-14 bg-gray-900 text-white rounded-[1.5rem] flex items-center justify-center relative shadow-xl active:scale-90 transition-all">
+          <FaShoppingBasket size={20} />
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-600 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border-4 border-white">
+              {cart.length}
+            </span>
           )}
+        </button>
+      </header>
 
-          {filteredItems.map((item, index) => (
-            <motion.div 
-              layout
-              initial={{ opacity: 0, scale: 0.9 }} 
-              animate={{ opacity: 1, scale: 1 }} 
-              key={item.id} 
-              className="col-12 col-md-6 col-lg-4 col-xl-3"
+      {/* 2. SEARCH & CATEGORIES */}
+      <div className="max-w-xl mx-auto p-6 space-y-8">
+        <div className="relative">
+          <FaSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" />
+          <input 
+            type="text" 
+            placeholder="Search your cravings..." 
+            className="w-full p-6 pl-16 bg-white rounded-[2.5rem] shadow-sm outline-none font-bold text-sm border-none focus:ring-2 focus:ring-gray-100 transition-all"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto no-scrollbar py-2">
+          <button 
+            onClick={() => setActiveCat('All')} 
+            className={`px-8 py-4 rounded-full font-black text-[10px] uppercase whitespace-nowrap transition-all ${activeCat === 'All' ? 'bg-gray-900 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}
+          >
+            All Items
+          </button>
+          {categories.map(cat => (
+            <button 
+              key={cat.id} 
+              onClick={() => setActiveCat(cat.name)} 
+              className={`px-8 py-4 rounded-full font-black text-[10px] uppercase whitespace-nowrap transition-all ${activeCat === cat.name ? 'bg-gray-900 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}
             >
-              <div className="fuse-card" onClick={() => setSelectedItem(item)}>
-                <div className="fuse-card-img">
-                  <img src={item.image_url || "https://via.placeholder.com/400x300"} alt={item.name} />
-                  <div className="fuse-card-overlay">
-                    <span className="price-tag">Rs. {item.price}</span>
-                  </div>
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* 3. MENU LIST */}
+        <div className="grid grid-cols-1 gap-4">
+          {menu
+            .filter(item => (activeCat === 'All' || item.category === activeCat))
+            .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map(item => (
+            <div key={item.id} className="bg-white p-5 rounded-[2.5rem] shadow-sm flex items-center justify-between group hover:shadow-md transition-all border border-transparent hover:border-gray-100">
+              <div className="flex items-center gap-5">
+                <div className="w-20 h-20 bg-gray-100 rounded-[2rem] overflow-hidden shadow-inner flex-shrink-0">
+                  <img src={item.image_url || 'https://via.placeholder.com/100'} className="w-full h-full object-cover" alt={item.name} />
                 </div>
-                <div className="fuse-card-body">
-                  <h6 className="item-name">{item.name}</h6>
-                  <p className="item-desc">{item.description?.substring(0, 60)}...</p>
-                  <button className="btn-add-fuse">
-                    <FaPlus /> Add to Tray
-                  </button>
+                <div className="text-left">
+                  <h3 className="font-black text-gray-800 uppercase italic tracking-tighter text-lg leading-tight">{item.name}</h3>
+                  <p className="text-xs font-bold text-red-600 mt-1">Rs. {item.price}</p>
                 </div>
               </div>
-            </motion.div>
+              <button 
+                onClick={() => addToCart(item)} 
+                className="w-12 h-12 bg-gray-50 text-gray-800 rounded-2xl flex items-center justify-center hover:bg-black hover:text-white transition-all active:scale-90"
+              >
+                <FaPlus />
+              </button>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* ITEM DETAILS POPUP */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay">
-            <motion.div 
-              initial={{ y: "100%" }} 
-              animate={{ y: 0 }} 
-              exit={{ y: "100%" }} 
-              transition={{ type: 'spring', damping: 25 }}
-              className="bottom-sheet"
-            >
-              <div className="sheet-header">
-                <div className="drag-handle"></div>
-                <button onClick={() => setSelectedItem(null)} className="btn-close-sheet"><FaTimes /></button>
-              </div>
-              <div className="sheet-content">
-                <img src={selectedItem.image_url} className="sheet-img" alt={selectedItem.name} />
-                <div className="p-4">
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <h2 className="fw-black text-2xl">{selectedItem.name}</h2>
-                    <span className="text-primary-dynamic fw-bold fs-4">Rs. {selectedItem.price}</span>
+      {/* 4. STICKY BOTTOM BAR */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-lg bg-gray-900 text-white p-6 rounded-[3rem] shadow-2xl flex justify-between items-center z-50 animate-in slide-in-from-bottom-10">
+          <div>
+            <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{cart.length} Items</p>
+            <p className="text-2xl font-black italic">Rs. {totalPrice}</p>
+          </div>
+          <button 
+            onClick={() => setShowCart(true)} 
+            className="bg-white text-black px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 transition-all shadow-lg"
+          >
+            View Cart <FaChevronRight />
+          </button>
+        </div>
+      )}
+
+      {/* 5. CART DRAWER (Slide-over) */}
+      {showCart && (
+        <div className="fixed inset-0 z-[55] overflow-hidden">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowCart(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white rounded-l-[3.5rem] shadow-2xl p-10 flex flex-col animate-in slide-in-from-right-full duration-500">
+            
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-3xl font-black text-gray-800 italic uppercase tracking-tighter leading-none">My Bag</h2>
+              <button onClick={() => setShowCart(false)} className="text-gray-300 hover:text-red-600 transition-all"><FaTimes size={24}/></button>
+            </div>
+
+            <div className="flex-grow overflow-y-auto space-y-8 no-scrollbar">
+              {cart.map(item => (
+                <div key={item.id} className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-gray-400 text-xs shadow-inner">
+                      x{item.qty}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm uppercase italic tracking-tighter">{item.name}</h4>
+                      <p className="text-[10px] font-bold text-red-600 uppercase tracking-tighter">Rs. {item.price * item.qty}</p>
+                    </div>
                   </div>
-                  <p className="text-muted leading-relaxed">{selectedItem.description}</p>
-                  
-                  <div className="mt-5">
-                    <button onClick={() => addToCart(selectedItem)} className="btn-checkout-large">
-                       Confirm Addition — Rs. {selectedItem.price}
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => removeFromCart(item)} className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xs hover:bg-red-50 hover:text-red-600 transition-all"><FaMinus /></button>
+                    <button onClick={() => addToCart(item)} className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xs hover:bg-green-50 hover:text-green-600 transition-all"><FaPlus /></button>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SLIDING CART DRAWER */}
-      <AnimatePresence>
-        {isCartOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCartOpen(false)} className="modal-overlay" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fuse-drawer">
-              <div className="drawer-header">
-                <h5 className="fw-black mb-0">My Tray ({cart.length})</h5>
-                <FaTimes onClick={() => setIsCartOpen(false)} className="cursor-pointer" />
-              </div>
-              
-              <div className="drawer-body">
-                {cart.length === 0 ? (
-                  <div className="empty-cart">
-                    <img src="https://cdn-icons-png.flaticon.com/512/11329/11329073.png" width="80" className="opacity-20 mb-3" />
-                    <p>Tray is empty. Time to feast! 😋</p>
-                  </div>
-                ) : (
-                  cart.map(item => (
-                    <div key={item.id} className="cart-item-fuse">
-                      <img src={item.image_url} className="cart-item-img" alt={item.name} />
-                      <div className="flex-grow-1">
-                        <h6 className="fw-bold mb-0 text-sm">{item.name}</h6>
-                        <small className="text-primary-dynamic fw-bold">Rs. {item.price * item.qty}</small>
-                      </div>
-                      <div className="qty-control">
-                        <FaMinus onClick={() => removeFromCart(item)} />
-                        <span>{item.qty}</span>
-                        <FaPlus onClick={() => addToCart(item)} />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {cart.length > 0 && (
-                <div className="drawer-footer">
-                  <div className="d-flex justify-content-between mb-4">
-                    <span className="fw-bold">Subtotal</span>
-                    <span className="fw-black fs-5">Rs. {cart.reduce((t, i) => t + (i.price * i.qty), 0)}</span>
-                  </div>
-                  <button onClick={() => navigate('/checkout', { state: { cart, branchId: currentBranch?.id } })} className="btn-checkout-large shadow-glow">
-                    Checkout Now
-                  </button>
+              ))}
+              {cart.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                  <p className="font-black text-gray-200 text-5xl uppercase italic tracking-tighter">Empty</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Add something delicious!</p>
                 </div>
               )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </div>
 
+            {/* Bottom Actions */}
+            <div className="pt-10 border-t border-gray-100">
+              <div className="flex justify-between items-end mb-8">
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Payable Amount</p>
+                  <p className="text-3xl font-black italic tracking-tighter">Rs. {totalPrice}</p>
+                </div>
+              </div>
+              <button 
+                onClick={goToCheckout} 
+                className="w-full py-6 bg-gray-900 text-white rounded-[2.5rem] font-black text-sm uppercase tracking-widest shadow-2xl active:scale-95 transition-all hover:bg-black"
+              >
+                Proceed to Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
