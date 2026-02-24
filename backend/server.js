@@ -18,7 +18,7 @@ const pool = new Pool({
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- GOOGLE AUTH & LOGIN (Merged Properly) ---
+// --- GOOGLE AUTH & LOGIN ---
 app.post('/api/auth/google', async (req, res) => {
     const { token } = req.body;
     try {
@@ -77,6 +77,19 @@ app.get('/api/branches/:id/vouchers', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Important: Fetch single voucher for Checkout validation
+app.get('/api/vouchers/:branchId/:code', async (req, res) => {
+  const { branchId, code } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM vouchers WHERE branch_id = $1 AND LOWER(code) = LOWER($2)',
+      [branchId, code]
+    );
+    if (result.rows.length > 0) res.json(result.rows[0]);
+    else res.status(404).json({ message: "Invalid Code" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/vouchers', async (req, res) => {
   const { branch_id, code, discount_amount, min_order } = req.body;
   try {
@@ -95,7 +108,7 @@ app.delete('/api/vouchers/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- DELIVERY AREAS & MASTER ---
+// --- DELIVERY AREAS ---
 app.get('/api/delivery-areas/master', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM delivery_areas_master ORDER BY area_name ASC');
@@ -155,7 +168,7 @@ app.get('/api/menu/:branch_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- ORDERS FETCH ---
+// --- ORDERS SYSTEM (Fuse Standard) ---
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
@@ -163,7 +176,19 @@ app.get('/api/orders/:branch_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- GETTERS (Restaurants & Branches) ---
+app.post('/api/orders', async (req, res) => {
+  const { branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method } = req.body;
+  try {
+    const txnId = generateTxnId();
+    const result = await pool.query(
+      'INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method, transaction_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, payment_method, txnId, 'pending']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- GETTERS ---
 app.get('/api/restaurants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
