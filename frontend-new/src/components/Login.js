@@ -6,20 +6,20 @@ const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
+  // Aapka bheja hua image link (Direct Link Version)
+  const bgImage = "https://i.ibb.co/xS0d2rXw/image.jpg"; 
+
   const handleGoogleSuccess = async (response) => {
     try {
-      console.log("Google Token Received:", response.credential);
       const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/google", {
         token: response.credential
       });
-      
       localStorage.setItem('token', res.data.token || 'google-auth');
       localStorage.setItem('user', JSON.stringify(res.data.user));
-
       redirectUser(res.data.user.role);
     } catch (err) {
       console.error("Google Login Error:", err);
-      alert("Google Login Failed! Backend sync check karein.");
+      alert("Google Login Failed!");
     }
   };
 
@@ -43,77 +43,124 @@ const Login = () => {
         email: identifier.trim(), 
         password: password.trim()
       });
-      
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-
       redirectUser(res.data.user.role);
     } catch (err) {
-      console.error("Login Error:", err);
-      alert(err.response?.data?.message || "Login Failed! Check credentials.");
+      alert(err.response?.data?.message || "Login Failed!");
     }
   };
 
   return (
-    <div style={{ backgroundColor: '#f4f7fe', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Poppins', sans-serif" }}>
-      <div className="card border-0 shadow-lg rounded-4 p-5" style={{ maxWidth: '420px', width: '100%', background: '#ffffff' }}>
-        <div className="text-center mb-4">
-          <div style={{ width: '60px', height: '60px', background: 'linear-gradient(45deg, #4e73df, #224abe)', borderRadius: '15px', margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '24px' }}>
-            👑
+    <div style={{ 
+      // Background Image with a slight dark overlay for better text visibility
+      backgroundImage: `linear-gradient(to right, rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url('${bgImage}')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      minHeight: '100vh', 
+      width: '100vw',
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'flex-end', // Card moves to right
+      paddingRight: '8%', // Gap from right edge
+      fontFamily: "'Poppins', sans-serif",
+      overflow: 'hidden'
+    }}>
+      
+      {/* Login Card */}
+      <div style={{ 
+        maxWidth: '420px', 
+        width: '100%', 
+        backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+        padding: '40px',
+        borderRadius: '30px',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+        border: '1px solid rgba(220, 53, 69, 0.1)'
+      }}>
+        
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <div style={{ 
+            width: '60px', height: '60px', 
+            background: '#dc3545', 
+            borderRadius: '15px', 
+            margin: '0 auto 15px', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            color: '#fff', fontSize: '24px',
+            boxShadow: '0 10px 20px rgba(220, 53, 69, 0.3)'
+          }}>
+            🍔
           </div>
-          <h3 className="fw-bold text-dark mb-1">Restaurant Management <span style={{ color: '#4e73df' }}>System</span></h3>
-          <p className="text-muted small">Access your management dashboard</p>
+          <h3 style={{ fontWeight: '900', color: '#333', marginBottom: '5px', letterSpacing: '-1px' }}>
+            SMART <span style={{ color: '#dc3545' }}>ADMIN</span>
+          </h3>
+          <p style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' }}>
+            System Access Portal
+          </p>
         </div>
 
         <form onSubmit={handleLogin}>
-          <div className="mb-3">
-            <label className="form-label small fw-bold text-secondary">Email Address</label>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '8px', marginLeft: '5px' }}>
+              EMAIL ADDRESS
+            </label>
             <input 
               type="email" 
-              className="form-control rounded-pill bg-light border-0 px-4 py-2 shadow-sm" 
-              placeholder="admin@example.com" 
+              placeholder="admin@smart.com" 
               onChange={(e) => setIdentifier(e.target.value)} 
               required 
-              style={{ fontSize: '14px' }}
-            />
-          </div>
-          <div className="mb-4">
-            <label className="form-label small fw-bold text-secondary">Password</label>
-            <input 
-              type="password" 
-              className="form-control rounded-pill bg-light border-0 px-4 py-2 shadow-sm" 
-              placeholder="••••••••" 
-              onChange={(e) => setPassword(e.target.value)} 
-              required 
-              style={{ fontSize: '14px' }}
+              style={{ 
+                width: '100%', padding: '15px 20px', borderRadius: '15px', border: '1px solid #eee',
+                backgroundColor: '#f9f9f9', fontSize: '14px', outline: 'none', transition: '0.3s'
+              }}
             />
           </div>
           
-          <button type="submit" className="btn btn-primary w-100 rounded-pill fw-bold py-2 shadow-md border-0 transition-all mb-3" style={{ background: 'linear-gradient(45deg, #4e73df, #224abe)', letterSpacing: '1px' }}>
-            SIGN IN
+          <div style={{ marginBottom: '25px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '8px', marginLeft: '5px' }}>
+              PASSWORD
+            </label>
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              onChange={(e) => setPassword(e.target.value)} 
+              required 
+              style={{ 
+                width: '100%', padding: '15px 20px', borderRadius: '15px', border: '1px solid #eee',
+                backgroundColor: '#f9f9f9', fontSize: '14px', outline: 'none'
+              }}
+            />
+          </div>
+          
+          <button type="submit" style={{ 
+            width: '100%', padding: '15px', borderRadius: '15px', border: 'none',
+            backgroundColor: '#dc3545', color: 'white', fontWeight: 'bold', fontSize: '14px',
+            cursor: 'pointer', transition: 'all 0.3s ease', boxShadow: '0 8px 15px rgba(220, 53, 69, 0.2)',
+            textTransform: 'uppercase'
+          }}>
+            Sign In Now
           </button>
         </form>
 
-        <div className="d-flex align-items-center my-3">
-          <hr className="flex-grow-1" />
-          <span className="mx-2 text-muted small">OR</span>
-          <hr className="flex-grow-1" />
+        <div style={{ display: 'flex', alignItems: 'center', margin: '25px 0' }}>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#eee' }}></div>
+          <span style={{ margin: '0 15px', color: '#aaa', fontSize: '10px', fontWeight: 'bold' }}>OR SIGN IN WITH</span>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#eee' }}></div>
         </div>
 
-        {/* --- FIXED GOOGLE LOGIN SECTION --- */}
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
           <GoogleLogin 
             onSuccess={handleGoogleSuccess} 
             onError={() => console.log("Login Failed")}
-            useOneTap
-            theme="filled_blue"
             shape="pill"
-            width="320"
+            width="340"
           />
         </div>
 
-        <div className="text-center mt-4">
-          <p className="text-muted x-small mb-0">Online Ordering System By Hurraira</p>
+        <div style={{ textAlign: 'center', marginTop: '30px' }}>
+          <p style={{ color: '#bbb', fontSize: '9px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase' }}>
+            Powered by Smart Agency System 2026
+          </p>
         </div>
       </div>
     </div>
