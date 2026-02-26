@@ -7,7 +7,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
 
   // Aapka bheja hua image link (Direct Link Version)
-  const bgImage = "https://i.postimg.cc/rsPD266J/Login-Background-01.jpg";
+  const bgImage = "https://i.postimg.cc/6q4XTqb0/Login-Background-2-01.jpg";
 
   const handleGoogleSuccess = async (response) => {
     try {
