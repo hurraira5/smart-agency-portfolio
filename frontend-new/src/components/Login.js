@@ -7,7 +7,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
 
   // Aapka bheja hua image link (Direct Link Version)
-  const bgImage = "https://i.ibb.co/xS0d2rXw/image.jpg";
+  const bgImage = "https://i.postimg.cc/rsPD266J/Login-Background-01.jpg";
 
   const handleGoogleSuccess = async (response) => {
     try {
@@ -138,7 +138,7 @@ const Login = () => {
             cursor: 'pointer', transition: 'all 0.3s ease', boxShadow: '0 8px 15px rgba(220, 53, 69, 0.2)',
             textTransform: 'uppercase'
           }}>
-            Sign In Now
+            Sign In
           </button>
         </form>
 
@@ -159,7 +159,7 @@ const Login = () => {
 
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <p style={{ color: '#bbb', fontSize: '9px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase' }}>
-            Powered by Smart Agency System 2026
+            Powered by Restaurant Management System 2026
           </p>
         </div>
       </div>
