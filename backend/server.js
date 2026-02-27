@@ -18,6 +18,45 @@ const pool = new Pool({
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
+// --- 1. SUPERADMIN: RESTAURANTS & BRANCHES CREATION (MISSING ROUTES ADDED) ---
+
+// Create Restaurant (Brand)
+app.post('/api/restaurants', async (req, res) => {
+  const { name, logo_url } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO restaurants (name, logo_url) VALUES ($1, $2) RETURNING *',
+      [name, logo_url || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("DB Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create Branch
+app.post('/api/branches', async (req, res) => {
+  const { restaurant_id, branch_name, manager_email, password, plan } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO branches (restaurant_id, branch_name, manager_email, password, plan) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [restaurant_id, branch_name, manager_email, password, plan || 'Monthly']
+    );
+    
+    // Sath hi users table mein bhi entry kar dete hain taaki manager login kar sakay
+    await pool.query(
+      'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5)',
+      [branch_name, manager_email, password, 'manager', result.rows[0].id]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("DB Error:", err.message);
+    res.status(500).json({ error: "Email already exists or DB Error" });
+  }
+});
+
 // --- GOOGLE AUTH & LOGIN ---
 app.post('/api/auth/google', async (req, res) => {
     const { token } = req.body;
@@ -77,7 +116,6 @@ app.get('/api/branches/:id/vouchers', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Important: Fetch single voucher for Checkout validation
 app.get('/api/vouchers/:branchId/:code', async (req, res) => {
   const { branchId, code } = req.params;
   try {
@@ -101,51 +139,7 @@ app.post('/api/vouchers', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/vouchers/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM vouchers WHERE id = $1', [req.params.id]);
-    res.json({ message: "Voucher deleted" });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- DELIVERY AREAS ---
-app.get('/api/delivery-areas/master', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM delivery_areas_master ORDER BY area_name ASC');
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/branches/:id/delivery-areas', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM delivery_areas WHERE branch_id = $1', [req.params.id]);
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/branches/delivery-areas/sync', async (req, res) => {
-  const { branch_id, area_name, fee } = req.body;
-  try {
-    const result = await pool.query(
-      'INSERT INTO delivery_areas (branch_id, area_name, fee) VALUES ($1, $2, $3) ON CONFLICT (branch_id, area_name) DO UPDATE SET fee = $3 RETURNING *',
-      [branch_id, area_name, fee]
-    );
-    res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- CONFIG & MENU & ORDERS ---
-app.put('/api/branches/:id/config', async (req, res) => {
-  const { theme_color, is_cod_enabled, is_online_enabled, delivery_fee, tax_percentage, status, discount_global } = req.body;
-  try {
-    const result = await pool.query(
-      `UPDATE branches SET theme_color = $1, is_cod_enabled = $2, is_online_enabled = $3, delivery_fee = $4, tax_percentage = $5, status = $6, discount_global = $7 WHERE id = $8 RETURNING *`,
-      [theme_color, is_cod_enabled, is_online_enabled, delivery_fee, tax_percentage, status, discount_global, req.params.id]
-    );
-    res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
+// --- MENU & ORDERS ---
 app.post('/api/menu', async (req, res) => {
   const { branch_id, name, price, category, description, image_url } = req.body;
   try {
@@ -154,24 +148,9 @@ app.post('/api/menu', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/menu/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM menu WHERE id = $1', [req.params.id]);
-    res.json({ message: "Deleted" });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/api/menu/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- ORDERS SYSTEM (Fuse Standard) ---
-app.get('/api/orders/:branch_id', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -188,7 +167,7 @@ app.post('/api/orders', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- GETTERS ---
+// --- GETTERS FOR SUPERADMIN ---
 app.get('/api/restaurants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
@@ -210,4 +189,6 @@ app.get('/api/branches/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.listen(5000, () => console.log('Enterprise SaaS Server LIVE on 5000'));
+// PORT ko Vercel/Heroku ke mutabiq set kiya
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server LIVE on port ${PORT}`));
