@@ -92,7 +92,7 @@ const Login = () => {
             🍔
           </div>
           <h3 style={{ fontWeight: '900', color: '#333', marginBottom: '5px', letterSpacing: '-1px' }}>
-            RESTAURANT MANGEMNET <span style={{ color: '#dc3545' }}>SYSTEM</span>
+            RESTAURANT MANGEMENT <span style={{ color: '#dc3545' }}>SYSTEM</span>
           </h3>
           <p style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' }}>
             Login to Access Your Ordering System
