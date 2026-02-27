@@ -22,7 +22,7 @@ const SuperAdmin = () => {
   const [vouchers, setVouchers] = useState([]);
   const [orders, setOrders] = useState([]);
 
-  const API_BASE = "https://smart-agency-api.vercel.app/api";
+  const API_BASE = "https://smart-agency-backend.vercel.app/api";
 
   // Form States
   const [newBrandData, setNewBrandData] = useState({ name: '', admin_email: '', admin_password: '' });
