@@ -9,16 +9,17 @@ require('dotenv').config();
 
 const app = express();
 
-// --- CORS FIX (Bohat Zaroori) ---
+// --- 1. FULL CORS PERMISSION (FIX) ---
 app.use(cors({
-  origin: '*', // Testing ke liye sab allow hai
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: '*', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
 }));
 
 app.use(express.json());
 
-// --- PUSHER CONFIG ---
+// --- 2. PUSHER CONFIG ---
 const pusher = new Pusher({
   appId: "2121335",
   key: "bcac1c75483080b47786",
@@ -32,17 +33,14 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- TEST ROUTE (Check karne ke liye ke API zinda hai) ---
+// --- TEST ROUTE ---
 app.get('/', (req, res) => res.send("Smart API is LIVE! 🚀"));
 
-// --- LOGIN ROUTE ---
+// --- 3. LOGIN ROUTE (FULL BULLETPROOF) ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  
-  // Debug log (Vercel logs mein nazar ayega)
   console.log("Login attempt for:", email);
 
   try {
@@ -54,7 +52,8 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    if (user.password !== password) {
+    // Password comparison (Direct as per your current DB)
+    if (String(user.password) !== String(password)) {
       return res.status(401).json({ message: "Invalid password!" });
     }
 
@@ -79,11 +78,11 @@ app.post('/api/auth/login', async (req, res) => {
 
   } catch (err) {
     console.error("Login Error:", err);
-    res.status(500).json({ error: "Server Error" });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-// --- RESTAURANTS & BRANCHES ---
+// --- 4. RESTAURANTS & BRANCHES ---
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password, logo_url } = req.body;
   try {
@@ -92,6 +91,7 @@ app.post('/api/restaurants', async (req, res) => {
       [name, logo_url || '']
     );
     const restaurantId = resResult.rows[0].id;
+
     if(admin_email && admin_password) {
         await pool.query(
             'INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($1, $2, $3, $4, $5)',
@@ -117,7 +117,7 @@ app.post('/api/branches', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// Update/Delete Routes... (Keep your existing ones)
+// Update/Delete Branches
 app.put('/api/branches/:id', async (req, res) => {
     try {
         const { branch_name } = req.body;
@@ -134,6 +134,16 @@ app.delete('/api/branches/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Toggle Branch Status (Enable/Disable)
+app.put('/api/branches/:id/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        await pool.query('UPDATE branches SET status = $1 WHERE id = $2', [status, req.params.id]);
+        res.json({ message: "Status Updated" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 5. CREDENTIALS RESET ---
 app.put('/api/auth/reset-credentials', async (req, res) => {
     const { type, id, email, password } = req.body;
     try {
@@ -147,7 +157,7 @@ app.put('/api/auth/reset-credentials', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- ORDERS ---
+// --- 6. ORDERS WITH PUSHER ---
 app.post('/api/orders', async (req, res) => {
   const { branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method } = req.body;
   try {
@@ -161,7 +171,7 @@ app.post('/api/orders', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- GETTERS ---
+// --- 7. GETTERS ---
 app.get('/api/restaurants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
@@ -179,6 +189,28 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Placeholder for remaining routes
+app.get('/api/menu/:branch_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM menu WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/branches/:id/delivery-areas', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM delivery_areas WHERE branch_id = $1', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/branches/:id/vouchers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vouchers WHERE branch_id = $1', [req.params.id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
