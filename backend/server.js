@@ -8,7 +8,14 @@ const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// --- CORS FIX (Bohat Zaroori) ---
+app.use(cors({
+  origin: '*', // Testing ke liye sab allow hai
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // --- PUSHER CONFIG ---
@@ -28,11 +35,17 @@ const pool = new Pool({
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- LOGIN ROUTE (FIXED & ADDED) ---
+// --- TEST ROUTE (Check karne ke liye ke API zinda hai) ---
+app.get('/', (req, res) => res.send("Smart API is LIVE! 🚀"));
+
+// --- LOGIN ROUTE ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
+  
+  // Debug log (Vercel logs mein nazar ayega)
+  console.log("Login attempt for:", email);
+
   try {
-    // 1. Email check (LOWER case taaki galti na ho)
     const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
     
     if (userResult.rows.length === 0) {
@@ -41,22 +54,18 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // 2. Password check
     if (user.password !== password) {
       return res.status(401).json({ message: "Invalid password!" });
     }
 
-    // 3. Role handling (Agar null ho toh customer bana do, aur hamesha lowercase rakho)
     const userRole = (user.role || 'customer').toLowerCase().trim();
 
-    // 4. Token generation
     const token = jwt.sign(
       { id: user.id, role: userRole, branch_id: user.branch_id, restaurant_id: user.restaurant_id },
       process.env.JWT_SECRET || 'admin123',
       { expiresIn: '7d' }
     );
 
-    // 5. Response
     res.json({ 
       token, 
       user: { 
@@ -70,12 +79,11 @@ app.post('/api/auth/login', async (req, res) => {
 
   } catch (err) {
     console.error("Login Error:", err);
-    res.status(500).json({ error: "Server Error during login" });
+    res.status(500).json({ error: "Server Error" });
   }
 });
 
 // --- RESTAURANTS & BRANCHES ---
-
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password, logo_url } = req.body;
   try {
@@ -84,7 +92,6 @@ app.post('/api/restaurants', async (req, res) => {
       [name, logo_url || '']
     );
     const restaurantId = resResult.rows[0].id;
-
     if(admin_email && admin_password) {
         await pool.query(
             'INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($1, $2, $3, $4, $5)',
@@ -110,6 +117,7 @@ app.post('/api/branches', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
+// Update/Delete Routes... (Keep your existing ones)
 app.put('/api/branches/:id', async (req, res) => {
     try {
         const { branch_name } = req.body;
@@ -148,13 +156,7 @@ app.post('/api/orders', async (req, res) => {
       'INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method, transaction_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
       [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, payment_method, txnId, 'pending']
     );
-
-    pusher.trigger("orders-channel", "new-order", {
-      branch_id: branch_id,
-      message: `Naya order aaya hai: ${customer_name}`,
-      total: total_amount
-    });
-
+    pusher.trigger("orders-channel", "new-order", { branch_id, message: `Naya order: ${customer_name}`, total: total_amount });
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
