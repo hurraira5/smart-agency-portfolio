@@ -3,7 +3,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const crypto = require('crypto');
-const Pusher = require('pusher'); // Pusher Import
+const Pusher = require('pusher');
 const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
@@ -28,34 +28,73 @@ const pool = new Pool({
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- 1. SUPERADMIN: RESTAURANTS & BRANCHES ---
+// --- LOGIN ROUTE (FIXED & ADDED) ---
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // 1. Email check (LOWER case taaki galti na ho)
+    const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ message: "User not found!" });
+    }
 
-// Create Restaurant + Boss Admin Account
+    const user = userResult.rows[0];
+
+    // 2. Password check
+    if (user.password !== password) {
+      return res.status(401).json({ message: "Invalid password!" });
+    }
+
+    // 3. Role handling (Agar null ho toh customer bana do, aur hamesha lowercase rakho)
+    const userRole = (user.role || 'customer').toLowerCase().trim();
+
+    // 4. Token generation
+    const token = jwt.sign(
+      { id: user.id, role: userRole, branch_id: user.branch_id, restaurant_id: user.restaurant_id },
+      process.env.JWT_SECRET || 'admin123',
+      { expiresIn: '7d' }
+    );
+
+    // 5. Response
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        role: userRole, 
+        branch_id: user.branch_id,
+        restaurant_id: user.restaurant_id 
+      } 
+    });
+
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ error: "Server Error during login" });
+  }
+});
+
+// --- RESTAURANTS & BRANCHES ---
+
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password, logo_url } = req.body;
   try {
-    // 1. Restaurant table mein entry
     const resResult = await pool.query(
       'INSERT INTO restaurants (name, logo_url) VALUES ($1, $2) RETURNING *',
       [name, logo_url || '']
     );
     const restaurantId = resResult.rows[0].id;
 
-    // 2. Boss Account (Role: boss) users table mein entry
     if(admin_email && admin_password) {
         await pool.query(
             'INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($1, $2, $3, $4, $5)',
             [name + " Boss", admin_email, admin_password, 'boss', restaurantId]
         );
     }
-
     res.status(201).json(resResult.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Create Branch + Manager Account
 app.post('/api/branches', async (req, res) => {
   const { restaurant_id, branch_name, manager_email, password, plan } = req.body;
   try {
@@ -63,19 +102,14 @@ app.post('/api/branches', async (req, res) => {
       'INSERT INTO branches (restaurant_id, branch_name, manager_email, password, plan, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [restaurant_id, branch_name, manager_email, password, plan || 'Monthly', 'active']
     );
-    
     await pool.query(
       'INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5)',
       [branch_name, manager_email, password, 'manager', result.rows[0].id]
     );
-
     res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Email already exists or DB Error" });
-  }
+  } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// Update Branch Name
 app.put('/api/branches/:id', async (req, res) => {
     try {
         const { branch_name } = req.body;
@@ -84,16 +118,14 @@ app.put('/api/branches/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Delete Branch
 app.delete('/api/branches/:id', async (req, res) => {
     try {
         await pool.query('DELETE FROM branches WHERE id = $1', [req.params.id]);
-        await pool.query('DELETE FROM users WHERE branch_id = $1', [req.params.id]); // Manager delete
+        await pool.query('DELETE FROM users WHERE branch_id = $1', [req.params.id]); 
         res.json({ message: "Deleted" });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Reset Credentials (Boss or Manager)
 app.put('/api/auth/reset-credentials', async (req, res) => {
     const { type, id, email, password } = req.body;
     try {
@@ -107,8 +139,7 @@ app.put('/api/auth/reset-credentials', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- MENU & ORDERS (With Pusher Trigger) ---
-
+// --- ORDERS ---
 app.post('/api/orders', async (req, res) => {
   const { branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method } = req.body;
   try {
@@ -118,7 +149,6 @@ app.post('/api/orders', async (req, res) => {
       [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, payment_method, txnId, 'pending']
     );
 
-    // LIVE ALERT: Pusher trigger
     pusher.trigger("orders-channel", "new-order", {
       branch_id: branch_id,
       message: `Naya order aaya hai: ${customer_name}`,
@@ -129,7 +159,7 @@ app.post('/api/orders', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- REST OF THE GETTERS (Same as before) ---
+// --- GETTERS ---
 app.get('/api/restaurants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
@@ -144,21 +174,12 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/menu/:branch_id', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM menu WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/api/orders/:branch_id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY created_at DESC', [req.params.branch_id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-// ... categories, vouchers, delivery-areas (Baki aapka purana logic waise hi hai)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Smart Server Running on ${PORT}`));
