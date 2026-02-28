@@ -8,13 +8,18 @@ require('dotenv').config();
 
 const app = express();
 
-// --- 1. HARDOCC CORS FIX ---
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true
-}));
+// --- 1. HARDOCC CORS BYPASS (Is se browser block nahi karega) ---
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*"); // Sab ko allow kar do
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  
+  // Browser pehle 'OPTIONS' bhejta hai check karne ke liye
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(express.json());
 
@@ -37,7 +42,7 @@ const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${cryp
 // --- TEST ROUTE ---
 app.get('/', (req, res) => res.send("Smart API is LIVE! 🚀"));
 
-// --- 3. LOGIN ROUTE (FINAL BULLETPROOF) ---
+// --- 3. LOGIN ROUTE ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
