@@ -8,18 +8,13 @@ require('dotenv').config();
 
 const app = express();
 
-// --- 1. HARDOCC CORS BYPASS (Is se browser block nahi karega) ---
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); // Sab ko allow kar do
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  
-  // Browser pehle 'OPTIONS' bhejta hai check karne ke liye
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
+// --- 1. SUPER-OPEN CORS (Is se har qism ka block khatam ho jaye ga) ---
+app.use(cors({
+  origin: '*', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
+}));
 
 app.use(express.json());
 
@@ -39,19 +34,28 @@ const pool = new Pool({
 
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- TEST ROUTE ---
-app.get('/', (req, res) => res.send("Smart API is LIVE! 🚀"));
+// --- TEST ROUTE (Verify karne ke liye ke API zinda hai) ---
+app.get('/', (req, res) => res.send("Smart API is LIVE & OPEN! 🚀"));
 
-// --- 3. LOGIN ROUTE ---
+// --- 3. LOGIN ROUTE (FINAL BULLETPROOF) ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log("Login Request Received for:", email); // Vercel logs mein nazar aaye ga
+
   try {
+    // Email ko trim aur lowercase mein check karna
     const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
     
-    if (userResult.rows.length === 0) return res.status(401).json({ message: "User not found!" });
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ message: "User not found in Database!" });
+    }
 
     const user = userResult.rows[0];
-    if (String(user.password) !== String(password)) return res.status(401).json({ message: "Invalid password!" });
+
+    // Password comparison (String conversion taaki match pakka ho)
+    if (String(user.password).trim() !== String(password).trim()) {
+      return res.status(401).json({ message: "Invalid password!" });
+    }
 
     const userRole = (user.role || 'customer').toLowerCase().trim();
 
@@ -63,10 +67,18 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.json({ 
       token, 
-      user: { id: user.id, username: user.username, role: userRole, branch_id: user.branch_id, restaurant_id: user.restaurant_id } 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        role: userRole, 
+        branch_id: user.branch_id,
+        restaurant_id: user.restaurant_id 
+      } 
     });
+
   } catch (err) {
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Critical Login Error:", err);
+    res.status(500).json({ error: "Internal Server Error - Check DB Connection" });
   }
 });
 
@@ -77,8 +89,8 @@ app.post('/api/restaurants', async (req, res) => {
     const resResult = await pool.query('INSERT INTO restaurants (name) VALUES ($1) RETURNING *', [name]);
     const restaurantId = resResult.rows[0].id;
     if(admin_email && admin_password) {
-        await pool.query('INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($2, $3, $4, $5, $1)',
-            [restaurantId, name + " Boss", admin_email, admin_password, 'boss']);
+        await pool.query('INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($1, $2, $3, $4, $5)',
+            [name + " Boss", admin_email, admin_password, 'boss', restaurantId]);
     }
     res.status(201).json(resResult.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -95,6 +107,7 @@ app.post('/api/branches', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
+// Getter Routes
 app.get('/api/restaurants', async (req, res) => {
   const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
   res.json(result.rows);
@@ -105,12 +118,7 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
   res.json(result.rows);
 });
 
-app.get('/api/orders/:branch_id', async (req, res) => {
-  const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
-  res.json(result.rows);
-});
-
-// Update/Delete/Reset Routes
+// Update/Delete/Reset
 app.put('/api/branches/:id', async (req, res) => {
   await pool.query('UPDATE branches SET branch_name = $1 WHERE id = $2', [req.body.branch_name, req.params.id]);
   res.json({ message: "Updated" });
@@ -132,5 +140,24 @@ app.put('/api/auth/reset-credentials', async (req, res) => {
   res.json({ message: "Success" });
 });
 
+// --- ORDERS ---
+app.post('/api/orders', async (req, res) => {
+  const { branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method } = req.body;
+  try {
+    const txnId = generateTxnId();
+    const result = await pool.query(
+      'INSERT INTO orders (branch_id, customer_name, customer_phone, customer_address, items, total_amount, payment_method, transaction_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [branch_id, customer_name, customer_phone, customer_address, JSON.stringify(items), total_amount, payment_method, txnId, 'pending']
+    );
+    pusher.trigger("orders-channel", "new-order", { branch_id, message: `Naya order: ${customer_name}` });
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/orders/:branch_id', async (req, res) => {
+    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
+    res.json(result.rows);
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server LIVE` ));
+app.listen(PORT, () => console.log(`Server LIVE on ${PORT}`));
