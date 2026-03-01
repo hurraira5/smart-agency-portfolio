@@ -14,7 +14,6 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
   
-  // OPTIONS request (pre-flight) ko foran 200 OK dena zaroori hai browser ke liye
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -23,7 +22,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// --- 2. PUSHER CONFIG ---
+// --- 2. PUSHER & DB CONFIG ---
 const pusher = new Pusher({
   appId: "2121335",
   key: "bcac1c75483080b47786",
@@ -39,15 +38,16 @@ const pool = new Pool({
 
 const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
-// --- TEST ROUTE (Verify karne ke liye ke API zinda hai) ---
+// --- TEST ROUTE (Open this in browser) ---
 app.get('/', (req, res) => res.send("Smart API is LIVE & OPEN! 🚀"));
 
-// --- 3. LOGIN ROUTE (BULLETPROOF) ---
+// --- 3. LOGIN ROUTE (100% RELAXED LOGIC) ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  
+  console.log("Login hit for:", email);
+
   try {
-    // Database se user nikalna (Email trim aur lowercase karke)
+    // LOWER function use karke email dhoondna
     const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
     
     if (userResult.rows.length === 0) {
@@ -56,22 +56,19 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Password comparison (Seedha match kyunki aap encryption use nahi kar rahe abhi)
+    // Password comparison (String conversion taaki match pakka ho)
     if (String(user.password).trim() !== String(password).trim()) {
       return res.status(401).json({ message: "Invalid password!" });
     }
 
-    // Role handling
     const userRole = (user.role || 'customer').toLowerCase().trim();
 
-    // Token generation
     const token = jwt.sign(
       { id: user.id, role: userRole, branch_id: user.branch_id, restaurant_id: user.restaurant_id },
       process.env.JWT_SECRET || 'admin123',
       { expiresIn: '7d' }
     );
 
-    // Final Response
     res.json({ 
       token, 
       user: { 
@@ -153,4 +150,4 @@ app.put('/api/auth/reset-credentials', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Smart Server Running on ${PORT}`));
+app.listen(PORT, () => console.log(`Smart Server Running`));
