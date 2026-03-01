@@ -2,53 +2,27 @@ const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const crypto = require('crypto');
-const Pusher = require('pusher');
 require('dotenv').config();
 
 const app = express();
 
-// --- 1. HARDOCC CORS BYPASS (Is se browser block nahi karega) ---
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); 
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
+// --- SIMPLE CORS (Jo pehle kaam kar raha tha) ---
+app.use(cors());
 app.use(express.json());
-
-// --- 2. PUSHER & DB CONFIG ---
-const pusher = new Pusher({
-  appId: "2121335",
-  key: "bcac1c75483080b47786",
-  secret: "47427f42de48a0a9aea1",
-  cluster: "mt1",
-  useTLS: true
-});
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-const generateTxnId = () => `TXN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+// --- TEST ROUTE ---
+app.get('/', (req, res) => res.send("Server is Running! 🚀"));
 
-// --- TEST ROUTE (Open this in browser) ---
-app.get('/', (req, res) => res.send("Smart API is LIVE & OPEN! 🚀"));
-
-// --- 3. LOGIN ROUTE (100% RELAXED LOGIC) ---
+// --- ORIGINAL LOGIN ROUTE ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  console.log("Login hit for:", email);
-
   try {
-    // LOWER function use karke email dhoondna
-    const userResult = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     if (userResult.rows.length === 0) {
       return res.status(401).json({ message: "User not found!" });
@@ -56,17 +30,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Password comparison (String conversion taaki match pakka ho)
-    if (String(user.password).trim() !== String(password).trim()) {
+    if (user.password !== password) {
       return res.status(401).json({ message: "Invalid password!" });
     }
 
-    const userRole = (user.role || 'customer').toLowerCase().trim();
-
+    // Simple role pick
     const token = jwt.sign(
-      { id: user.id, role: userRole, branch_id: user.branch_id, restaurant_id: user.restaurant_id },
-      process.env.JWT_SECRET || 'admin123',
-      { expiresIn: '7d' }
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET || 'admin123'
     );
 
     res.json({ 
@@ -74,46 +45,18 @@ app.post('/api/auth/login', async (req, res) => {
       user: { 
         id: user.id, 
         username: user.username, 
-        role: userRole, 
-        branch_id: user.branch_id,
-        restaurant_id: user.restaurant_id 
+        role: user.role 
       } 
     });
 
   } catch (err) {
-    console.error("Login Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: "Server Error" });
   }
 });
 
-// --- RESTAURANTS & BRANCHES ---
-app.post('/api/restaurants', async (req, res) => {
-  const { name, admin_email, admin_password } = req.body;
-  try {
-    const resResult = await pool.query('INSERT INTO restaurants (name) VALUES ($1) RETURNING *', [name]);
-    const restaurantId = resResult.rows[0].id;
-    if(admin_email && admin_password) {
-        await pool.query('INSERT INTO users (username, email, password, role, restaurant_id) VALUES ($1, $2, $3, $4, $5)',
-            [name + " Boss", admin_email, admin_password, 'boss', restaurantId]);
-    }
-    res.status(201).json(resResult.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/branches', async (req, res) => {
-  const { restaurant_id, branch_name, manager_email, password } = req.body;
-  try {
-    const result = await pool.query('INSERT INTO branches (restaurant_id, branch_name, manager_email, password, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [restaurant_id, branch_name, manager_email, password, 'active']);
-    await pool.query('INSERT INTO users (username, email, password, role, branch_id) VALUES ($1, $2, $3, $4, $5)',
-      [branch_name, manager_email, password, 'manager', result.rows[0].id]);
-    res.status(201).json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: "DB Error" }); }
-});
-
-// Getters
+// --- BASIC RESTAURANTS & BRANCHES ---
 app.get('/api/restaurants', async (req, res) => {
-  const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
+  const result = await pool.query('SELECT * FROM restaurants');
   res.json(result.rows);
 });
 
@@ -122,32 +65,16 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
   res.json(result.rows);
 });
 
-app.get('/api/orders/:branch_id', async (req, res) => {
-  const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
-  res.json(result.rows);
-});
-
-// Update/Delete/Reset
-app.put('/api/branches/:id', async (req, res) => {
-  await pool.query('UPDATE branches SET branch_name = $1 WHERE id = $2', [req.body.branch_name, req.params.id]);
-  res.json({ message: "Updated" });
-});
-
-app.delete('/api/branches/:id', async (req, res) => {
-  await pool.query('DELETE FROM branches WHERE id = $1', [req.params.id]);
-  res.json({ message: "Deleted" });
-});
-
-app.put('/api/auth/reset-credentials', async (req, res) => {
-  const { type, id, email, password } = req.body;
-  if(type === 'manager') {
-      await pool.query('UPDATE branches SET manager_email = $1, password = $2 WHERE id = $3', [email, password, id]);
-      await pool.query('UPDATE users SET email = $1, password = $2 WHERE branch_id = $3', [email, password, id]);
-  } else {
-      await pool.query('UPDATE users SET email = $1, password = $2 WHERE restaurant_id = $3 AND role = $4', [email, password, id, 'boss']);
-  }
-  res.json({ message: "Success" });
+app.post('/api/branches', async (req, res) => {
+  const { restaurant_id, branch_name, manager_email, password } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO branches (restaurant_id, branch_name, manager_email, password) VALUES ($1, $2, $3, $4) RETURNING *',
+      [restaurant_id, branch_name, manager_email, password]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Smart Server Running`));
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
