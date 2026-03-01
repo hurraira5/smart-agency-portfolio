@@ -5,7 +5,21 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// ==========================================
+// HARDOCC CORS FIX (Is se "Login Failed" aur Brand creation theek hoga)
+// ==========================================
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*"); 
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
 
 // =======================
@@ -24,7 +38,7 @@ app.get('/', (req, res) => {
 });
 
 // =======================
-// AUTH LOGIN
+// AUTH LOGIN (UNTOUCHED - Jaisa aapne diya tha)
 // =======================
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -67,7 +81,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // =======================
-// CREATE RESTAURANT
+// CREATE RESTAURANT (FIXED FOR BROWSER BLOCKS)
 // =======================
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password } = req.body;
@@ -105,7 +119,6 @@ app.post('/api/restaurants', async (req, res) => {
     );
 
     await client.query("COMMIT");
-
     res.status(201).json(restaurantResult.rows[0]);
 
   } catch (err) {
@@ -174,7 +187,6 @@ app.post('/api/branches', async (req, res) => {
     );
 
     await client.query("COMMIT");
-
     res.status(201).json(branchResult.rows[0]);
 
   } catch (err) {
@@ -207,7 +219,6 @@ app.get('/api/restaurants/:id/branches', async (req, res) => {
 // =======================
 app.put('/api/branches/:id', async (req, res) => {
   const { branch_name } = req.body;
-
   try {
     await pool.query(
       'UPDATE branches SET branch_name = $1 WHERE id = $2',
@@ -240,7 +251,6 @@ app.delete('/api/branches/:id', async (req, res) => {
 // SERVER START
 // =======================
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });
