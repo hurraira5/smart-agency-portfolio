@@ -2,21 +2,12 @@ const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const crypto = require('crypto');
-const Pusher = require('pusher');
 require('dotenv').config();
 
 const app = express();
 
-// --- 1. HARDOCC CORS BYPASS ---
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); 
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-
+// --- SIMPLE CORS (Jo pehle kaam kar raha tha) ---
+app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
@@ -24,15 +15,14 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// --- 2. LOGIN ROUTE (100% FIXED) ---
+// --- TEST ROUTE ---
+app.get('/', (req, res) => res.send("Server is Running! 🚀"));
+
+// --- ORIGINAL LOGIN ROUTE ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    // LOWER() aur TRIM() use kiya taaki koi space ya capital ka masla na rahe
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))', 
-      [email]
-    );
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     if (userResult.rows.length === 0) {
       return res.status(401).json({ message: "User not found!" });
@@ -40,13 +30,13 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Password ko bhi trim kar ke check kar rahe hain
-    if (String(user.password).trim() !== String(password).trim()) {
+    if (user.password !== password) {
       return res.status(401).json({ message: "Invalid password!" });
     }
 
+    // Simple role pick
     const token = jwt.sign(
-      { id: user.id, role: user.role, branch_id: user.branch_id, restaurant_id: user.restaurant_id },
+      { id: user.id, role: user.role },
       process.env.JWT_SECRET || 'admin123'
     );
 
@@ -55,37 +45,36 @@ app.post('/api/auth/login', async (req, res) => {
       user: { 
         id: user.id, 
         username: user.username, 
-        role: user.role, 
-        branch_id: user.branch_id, 
-        restaurant_id: user.restaurant_id 
+        role: user.role 
       } 
     });
+
   } catch (err) {
-    res.status(500).json({ error: "Database Error" });
+    res.status(500).json({ error: "Server Error" });
   }
 });
 
-// --- 3. RESTAURANTS & BRANCHES (DATA FETCH FIX) ---
+// --- BASIC RESTAURANTS & BRANCHES ---
 app.get('/api/restaurants', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM restaurants ORDER BY id ASC');
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: "DB Error" }); }
+  const result = await pool.query('SELECT * FROM restaurants');
+  res.json(result.rows);
 });
 
 app.get('/api/restaurants/:id/branches', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1 ORDER BY id ASC', [req.params.id]);
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: "DB Error" }); }
+  const result = await pool.query('SELECT * FROM branches WHERE restaurant_id = $1', [req.params.id]);
+  res.json(result.rows);
 });
 
-app.get('/api/orders/:branch_id', async (req, res) => {
+app.post('/api/branches', async (req, res) => {
+  const { restaurant_id, branch_name, manager_email, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM orders WHERE branch_id = $1 ORDER BY id DESC', [req.params.branch_id]);
-    res.json(result.rows);
+    const result = await pool.query(
+      'INSERT INTO branches (restaurant_id, branch_name, manager_email, password) VALUES ($1, $2, $3, $4) RETURNING *',
+      [restaurant_id, branch_name, manager_email, password]
+    );
+    res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: "DB Error" }); }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server LIVE`));
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
