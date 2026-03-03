@@ -65,25 +65,25 @@ app.post('/api/restaurants', async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Email check
+    // 1. Email Check
     const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [admin_email]);
     if (emailCheck.rows.length > 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "Ye Email pehle se registered hai!" });
     }
 
-    // --- UPDATE: Yahan extra columns ko null bhej rahe hain taaki error na aaye ---
+    // 2. Insert Restaurant (Explicitly adding NULL for other columns)
     const resResult = await client.query(
-      'INSERT INTO restaurants (name, address, location, logo_url, phone) VALUES ($1, null, null, null, null) RETURNING id',
+      'INSERT INTO restaurants (name, address, location, phone, logo_url) VALUES ($1, NULL, NULL, NULL, NULL) RETURNING id',
       [name]
     );
     const restaurantId = resResult.rows[0].id;
 
-    // Password hashing
+    // 3. Password Hashing
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(admin_password, salt);
     
-    // Admin (Boss) User create karna
+    // 4. Create Boss User
     await client.query(
       "INSERT INTO users (email, password, role, restaurant_id) VALUES ($1, $2, 'boss', $3)",
       [admin_email, hashedPassword, restaurantId]
@@ -91,6 +91,7 @@ app.post('/api/restaurants', async (req, res) => {
 
     await client.query("COMMIT");
 
+    // SUCCESS MESSAGE 🔥
     res.status(201).json({ 
       message: "Restaurant Registered Successfully 🔥", 
       id: restaurantId 
@@ -98,7 +99,7 @@ app.post('/api/restaurants', async (req, res) => {
 
   } catch (err) {
     await client.query("ROLLBACK");
-    // Asli error terminal mein dekhne ke liye
+    // Asli error check karne ke liye Console log
     console.error("DATABASE ERROR:", err.message); 
     res.status(500).json({ error: "Database Error: " + err.message });
   } finally {
