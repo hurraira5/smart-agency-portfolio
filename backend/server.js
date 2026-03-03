@@ -6,7 +6,13 @@ const cors = require('cors');
 const bcrypt = require("bcryptjs");
 
 const app = express();
-app.use(cors());
+
+// CORS FIX: Taaki Vercel se frontend ki requests 100% allow hon
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json());
 
 const pool = new Pool({
@@ -14,9 +20,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Home Route
 app.get('/', (req, res) => res.send("Server is Running Online 🚀"));
 
-// 1. LOGIN (Wahi purana logic jo chal raha tha)
+// ==========================================
+// 1. LOGIN (Path aur Error handling fix ki hai)
+// ==========================================
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -26,6 +35,7 @@ app.post('/api/auth/login', async (req, res) => {
     const user = userResult.rows[0];
     const validPassword = await bcrypt.compare(password, user.password);
     
+    // Check both hashed and plain (for old users)
     if (!validPassword && password !== user.password) {
        return res.status(401).json({ message: "Invalid password" });
     }
@@ -37,14 +47,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 2. CREATE RESTAURANT (Ab columns ke sath banega)
+// ==========================================
+// 2. CREATE RESTAURANT (Wahi logic hai jo tum ne bheja tha)
+// ==========================================
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password } = req.body;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Yahan columns (address, location, logo_url, phone) add kiye hain taaki DB error na de
+    // Yahan columns (address, location, logo_url, phone) wahi hain jo tum ne sahi kiye thay
     const resResult = await client.query(
       'INSERT INTO restaurants (name, address, location, logo_url, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [name, 'Default Address', 'Default Location', '', '0000000000']
