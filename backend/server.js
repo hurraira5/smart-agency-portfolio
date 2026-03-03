@@ -7,25 +7,20 @@ const bcrypt = require("bcryptjs");
 
 const app = express();
 
-app.use(cors({
-  origin: "*", // Ye har jagah se request allow kar dega
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+// Sab domains ko allow kar diya taaki CORS ka masla hi khatam ho jaye
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// ==========================================
-// DIRECT CONNECTION (Neon Details)
-// ==========================================
 const pool = new Pool({
   connectionString: "postgresql://neondb_owner:npg_D9IJQvLGkC8H@ep-icy-poetry-ah0j2swp-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
   ssl: { rejectUnauthorized: false }
 });
 
-app.get('/', (req, res) => res.send("Server is Running Online 🚀"));
+// Test route
+app.get('/', (req, res) => res.send("Server is Active 🚀"));
 
 // ==========================================
-// 1. LOGIN (Original Logic)
+// 1. LOGIN (WORKING)
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -40,72 +35,56 @@ app.post('/api/auth/login', async (req, res) => {
        return res.status(401).json({ message: "Invalid password" });
     }
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role }, 
-      'SECRET_KEY', 
-      { expiresIn: '7d' }
-    );
-
-    res.json({ 
-      token, 
-      user: { id: user.id, email: user.email, role: user.role, restaurant_id: user.restaurant_id } 
-    });
+    const token = jwt.sign({ id: user.id, role: user.role }, 'SECRET_KEY', { expiresIn: '7d' });
+    res.json({ token, user });
   } catch (err) { 
     res.status(500).json({ error: err.message }); 
   }
 });
 
 // ==========================================
-// 2. CREATE RESTAURANT (Fix kiya hua code 🔥)
+// 2. CREATE RESTAURANT (FIXED)
 // ==========================================
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password } = req.body;
 
   if (!name || !admin_email || !admin_password) {
-    return res.status(400).json({ error: "Sari fields bharna lazmi hain!" });
+    return res.status(400).json({ error: "Details puri bharein!" });
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // 1. Email Check
+    // Check if email already exists
     const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [admin_email]);
     if (emailCheck.rows.length > 0) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Ye Email pehle se registered hai!" });
+      return res.status(400).json({ error: "Ye email pehle se hai!" });
     }
 
-    // 2. Insert Restaurant (Explicitly adding NULL for other columns)
+    // YAHAN FIX HAI: Hum extra columns mein empty string bhej rahe hain taaki DB gussa na kare
     const resResult = await client.query(
-      'INSERT INTO restaurants (name, address, location, phone, logo_url) VALUES ($1, NULL, NULL, NULL, NULL) RETURNING id',
-      [name]
+      'INSERT INTO restaurants (name, address, location, phone) VALUES ($1, $2, $3, $4) RETURNING id',
+      [name, '', '', ''] 
     );
     const restaurantId = resResult.rows[0].id;
 
-    // 3. Password Hashing
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(admin_password, salt);
     
-    // 4. Create Boss User
+    // User table mein insert
     await client.query(
       "INSERT INTO users (email, password, role, restaurant_id) VALUES ($1, $2, 'boss', $3)",
       [admin_email, hashedPassword, restaurantId]
     );
 
     await client.query("COMMIT");
-
-    // SUCCESS MESSAGE 🔥
-    res.status(201).json({ 
-      message: "Restaurant Registered Successfully 🔥", 
-      id: restaurantId 
-    });
+    res.status(201).json({ message: "Restaurant Registered Successfully 🔥", id: restaurantId });
 
   } catch (err) {
     await client.query("ROLLBACK");
-    // Asli error check karne ke liye Console log
-    console.error("DATABASE ERROR:", err.message); 
-    res.status(500).json({ error: "Database Error: " + err.message });
+    res.status(500).json({ error: "DB Error: " + err.message });
   } finally {
     client.release();
   }
@@ -114,4 +93,4 @@ app.post('/api/restaurants', async (req, res) => {
 module.exports = app;
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT} 🚀`));
+app.listen(PORT, () => console.log(`Server on ${PORT}`));
