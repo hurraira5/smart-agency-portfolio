@@ -6,9 +6,7 @@ const cors = require('cors');
 const bcrypt = require("bcryptjs");
 
 const app = express();
-
-// Sab domains ko allow kar diya taaki CORS ka masla hi khatam ho jaye
-app.use(cors({ origin: "*" }));
+app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
@@ -16,12 +14,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Test route
-app.get('/', (req, res) => res.send("Server is Active 🚀"));
+app.get('/', (req, res) => res.send("Server is Running Online 🚀"));
 
-// ==========================================
-// 1. LOGIN (WORKING)
-// ==========================================
+// 1. LOGIN (Wahi purana logic jo chal raha tha)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -42,38 +37,23 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. CREATE RESTAURANT (FIXED)
-// ==========================================
+// 2. CREATE RESTAURANT (Ab columns ke sath banega)
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password } = req.body;
-
-  if (!name || !admin_email || !admin_password) {
-    return res.status(400).json({ error: "Details puri bharein!" });
-  }
-
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Check if email already exists
-    const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [admin_email]);
-    if (emailCheck.rows.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Ye email pehle se hai!" });
-    }
-
-    // YAHAN FIX HAI: Hum extra columns mein empty string bhej rahe hain taaki DB gussa na kare
+    // Yahan columns (address, location, logo_url, phone) add kiye hain taaki DB error na de
     const resResult = await client.query(
-      'INSERT INTO restaurants (name, address, location, phone) VALUES ($1, $2, $3, $4) RETURNING id',
-      [name, '', '', ''] 
+      'INSERT INTO restaurants (name, address, location, logo_url, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [name, 'Default Address', 'Default Location', '', '0000000000']
     );
     const restaurantId = resResult.rows[0].id;
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(admin_password, salt);
     
-    // User table mein insert
     await client.query(
       "INSERT INTO users (email, password, role, restaurant_id) VALUES ($1, $2, 'boss', $3)",
       [admin_email, hashedPassword, restaurantId]
@@ -81,7 +61,6 @@ app.post('/api/restaurants', async (req, res) => {
 
     await client.query("COMMIT");
     res.status(201).json({ message: "Restaurant Registered Successfully 🔥", id: restaurantId });
-
   } catch (err) {
     await client.query("ROLLBACK");
     res.status(500).json({ error: "DB Error: " + err.message });
@@ -91,6 +70,5 @@ app.post('/api/restaurants', async (req, res) => {
 });
 
 module.exports = app;
-
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server on ${PORT}`));
+app.listen(PORT, () => console.log(`Server started on port ${PORT} 🚀`));
