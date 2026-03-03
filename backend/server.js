@@ -3,37 +3,34 @@ const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const bcrypt = require("bcryptjs"); // Bcryptjs use kiya hai taaki error na aaye
+const bcrypt = require("bcryptjs"); // Online deployment ke liye bcryptjs sabse best hai
 
 const app = express();
 
-// --- Middleware ---
+// CORS ko open rakha hai taaki Vercel frontend connect ho sake
 app.use(cors());
 app.use(express.json());
 
-// Database Connection
+// ==========================================
+// DIRECT CONNECTION (Aapka Neon Details - Password Included)
+// ==========================================
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false
+  connectionString: "postgresql://neondb_owner:npg_D9IJQvLGkC8H@ep-icy-poetry-ah0j2swp-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+  ssl: { rejectUnauthorized: false }
 });
 
-app.get('/', (req, res) => res.send("Server is Running 🚀"));
+app.get('/', (req, res) => res.send("Server is Running Online 🚀"));
 
 // ==========================================
-// 1. LOGIN FUNCTION (Original Logic)
+// 1. LOGIN (Original Logic)
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ message: "User not found" });
-    }
-    
+    if (userResult.rows.length === 0) return res.status(401).json({ message: "User not found" });
+
     const user = userResult.rows[0];
-    
-    // Original Bcrypt Comparison
     const validPassword = await bcrypt.compare(password, user.password);
     
     if (!validPassword && password !== user.password) {
@@ -42,18 +39,13 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, role: user.role }, 
-      process.env.JWT_SECRET || 'SECRET_KEY', 
+      'SECRET_KEY', 
       { expiresIn: '7d' }
     );
 
     res.json({ 
       token, 
-      user: { 
-        id: user.id, 
-        username: user.username, 
-        role: user.role,
-        restaurant_id: user.restaurant_id 
-      } 
+      user: { id: user.id, email: user.email, role: user.role, restaurant_id: user.restaurant_id } 
     });
   } catch (err) { 
     res.status(500).json({ error: err.message }); 
@@ -61,7 +53,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==========================================
-// 2. CREATE RESTAURANT (Success Message 🔥)
+// 2. CREATE RESTAURANT (Fire Emoji Wala 🔥)
 // ==========================================
 app.post('/api/restaurants', async (req, res) => {
   const { name, admin_email, admin_password } = req.body;
@@ -77,15 +69,15 @@ app.post('/api/restaurants', async (req, res) => {
     const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [admin_email]);
     if (emailCheck.rows.length > 0) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Email pehle se registered hai!" });
+      return res.status(400).json({ error: "Ye Email pehle se registered hai!" });
     }
 
     const resResult = await client.query(
       'INSERT INTO restaurants (name) VALUES ($1) RETURNING id',
       [name]
     );
-
     const restaurantId = resResult.rows[0].id;
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(admin_password, salt);
     
@@ -98,8 +90,7 @@ app.post('/api/restaurants', async (req, res) => {
 
     res.status(201).json({ 
       message: "Restaurant Registered Successfully 🔥", 
-      id: restaurantId, 
-      name: name 
+      id: restaurantId 
     });
 
   } catch (err) {
@@ -110,17 +101,8 @@ app.post('/api/restaurants', async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. GET RESTAURANTS
-// ==========================================
-app.get('/api/restaurants', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM restaurants ORDER BY id DESC');
-    res.json(result.rows);
-  } catch (err) { 
-    res.status(500).json({ error: err.message }); 
-  }
-});
+// Vercel deployment ke liye export zaroori hai
+module.exports = app;
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT} 🚀`));
