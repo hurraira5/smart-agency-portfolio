@@ -145,7 +145,7 @@ const SuperAdmin = () => {
       
       {/* 1. Sidebar */}
       <div className="w-80 bg-white border-r border-gray-100 flex flex-col shadow-2xl z-30">
-        <div className="p-8 font-black text-xl italic tracking-tighter text-red-600">SMART PANEL</div>
+        <div className="p-8 font-black text-xl italic tracking-tighter text-red-600">SUPER ADMIN CONSOLE</div>
         <div className="px-6 space-y-4 overflow-y-auto flex-grow">
           <label className="text-[10px] font-bold text-gray-400 uppercase px-2">Select Brand</label>
           <select className="w-full p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm outline-none" onChange={(e) => handleBrandChange(e.target.value)}>
@@ -262,7 +262,7 @@ const SuperAdmin = () => {
         ) : (
           <div className="h-full flex flex-col items-center justify-center opacity-10">
             <FaStore size={150} />
-            <h2 className="text-4xl font-black uppercase mt-4 italic tracking-tighter">Select a Station</h2>
+            <h2 className="text-4xl font-black uppercase mt-4 italic tracking-tighter">Select a Branch</h2>
           </div>
         )}
       </div>
