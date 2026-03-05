@@ -3,30 +3,30 @@ const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
 
 const app = express();
 
 // ==========================================
-// CORS FIX (FOR VERCEL FRONTEND)
+// CORS CONFIGURATION (VERCEL FRONTEND)
 // ==========================================
 const corsOptions = {
-  origin: "*",
+  origin: "*", // later change to your frontend domain
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization"]
 };
 
 app.use(cors(corsOptions));
-app.options("/*", cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
 // ==========================================
-// DATABASE CONNECTION
+// DATABASE CONNECTION (NEON POSTGRESQL)
 // ==========================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('neon.tech')
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes("neon.tech")
     ? { rejectUnauthorized: false }
     : false
 });
@@ -39,22 +39,24 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// AUTH LOGIN
+// LOGIN API
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
+
   const { email, password } = req.body;
 
   try {
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
+
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
       [email]
     );
 
-    if (userResult.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(401).json({ message: "User not found" });
     }
 
-    const user = userResult.rows[0];
+    const user = result.rows[0];
 
     // bcrypt check
     let validPassword = false;
@@ -63,15 +65,18 @@ app.post('/api/auth/login', async (req, res) => {
       validPassword = await bcrypt.compare(password, user.password);
     } catch (err) {}
 
-    // allow plain text also (for old users)
+    // allow plaintext (for old users)
     if (!validPassword && password !== user.password) {
       return res.status(401).json({ message: "Invalid password" });
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || 'SECRET_KEY',
-      { expiresIn: '7d' }
+      {
+        id: user.id,
+        role: user.role
+      },
+      process.env.JWT_SECRET || "SECRET_KEY",
+      { expiresIn: "7d" }
     );
 
     res.json({
@@ -83,10 +88,16 @@ app.post('/api/auth/login', async (req, res) => {
       }
     });
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+
+    console.error("Login Error:", error);
+
+    res.status(500).json({
+      error: "Server error"
+    });
+
   }
+
 });
 
 // ==========================================
@@ -108,22 +119,25 @@ app.post('/api/restaurants', async (req, res) => {
 
     await client.query("BEGIN");
 
-    // check email
+    // check if email exists
     const emailCheck = await client.query(
-      'SELECT id FROM users WHERE email = $1',
+      "SELECT id FROM users WHERE email = $1",
       [admin_email]
     );
 
     if (emailCheck.rows.length > 0) {
+
       await client.query("ROLLBACK");
+
       return res.status(400).json({
         error: "Email already exists"
       });
+
     }
 
     // create restaurant
     const restaurantResult = await client.query(
-      'INSERT INTO restaurants (name) VALUES ($1) RETURNING id',
+      "INSERT INTO restaurants (name) VALUES ($1) RETURNING id",
       [name]
     );
 
@@ -135,9 +149,8 @@ app.post('/api/restaurants', async (req, res) => {
 
     // create boss user
     await client.query(
-      `INSERT INTO users 
-       (email, password, role, restaurant_id)
-       VALUES ($1, $2, 'boss', $3)`,
+      `INSERT INTO users (email,password,role,restaurant_id)
+       VALUES ($1,$2,'boss',$3)`,
       [admin_email, hashedPassword, restaurantId]
     );
 
@@ -145,43 +158,46 @@ app.post('/api/restaurants', async (req, res) => {
 
     res.status(201).json({
       message: "Restaurant Registered Successfully 🔥",
-      id: restaurantId,
-      name: name
+      restaurant_id: restaurantId
     });
 
-  } catch (err) {
+  } catch (error) {
 
     await client.query("ROLLBACK");
 
-    console.error(err);
+    console.error("Create Restaurant Error:", error);
 
     res.status(500).json({
-      error: "Database Error: " + err.message
+      error: "Database error"
     });
 
   } finally {
+
     client.release();
+
   }
 
 });
 
 // ==========================================
-// GET RESTAURANTS
+// GET ALL RESTAURANTS
 // ==========================================
 app.get('/api/restaurants', async (req, res) => {
 
   try {
 
     const result = await pool.query(
-      'SELECT * FROM restaurants ORDER BY id DESC'
+      "SELECT * FROM restaurants ORDER BY id DESC"
     );
 
     res.json(result.rows);
 
-  } catch (err) {
+  } catch (error) {
+
+    console.error(error);
 
     res.status(500).json({
-      error: err.message
+      error: "Database error"
     });
 
   }
