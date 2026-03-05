@@ -11,7 +11,7 @@ const Login = () => {
 
   const handleGoogleSuccess = async (response) => {
     try {
-      const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/google", {
+      const res = await axios.post("https://smart-agency-api.backend.app/api/auth/google", {
         token: response.credential
       });
       localStorage.setItem('token', res.data.token || 'google-auth');
@@ -39,7 +39,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("https://smart-agency-api.vercel.app/api/auth/login", {
+      const res = await axios.post("https://smart-agency-backend.vercel.app/api/auth/login", {
         email: identifier.trim(),
         password: password.trim()
       });
