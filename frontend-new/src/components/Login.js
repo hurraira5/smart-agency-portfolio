@@ -5,27 +5,47 @@ import { GoogleLogin } from '@react-oauth/google';
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Aapka bheja hua image link (Direct Link Version)
   const bgImage = "https://i.postimg.cc/TY8wgvjr/Login-Background-1-01.jpg";
+  const API_BASE = "https://smart-agency-backend.vercel.app/api";
+
+  // Configure axios defaults
+  axios.defaults.withCredentials = true;
 
   const handleGoogleSuccess = async (response) => {
     try {
-      const res = await axios.post("https://smart-agency-api.backend.app/api/auth/google", {
+      setLoading(true);
+      setError('');
+      
+      const res = await axios.post(`${API_BASE}/auth/google`, {
         token: response.credential
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
-      localStorage.setItem('token', res.data.token || 'google-auth');
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      redirectUser(res.data.user.role);
+      
+      if (res.data.token && res.data.user) {
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        redirectUser(res.data.user.role);
+      } else {
+        setError('Invalid response from server');
+      }
     } catch (err) {
       console.error("Google Login Error:", err);
-      alert("Google Login Failed!");
+      setError(err.response?.data?.message || "Google Login Failed!");
+    } finally {
+      setLoading(false);
     }
   };
 
   const redirectUser = (userRole) => {
     const role = userRole.toLowerCase().trim();
-    if (role === 'admin' || role === 'superadmin') {
+    
+    if (role === 'superadmin') {
       window.location.href = '/super-admin';
     } else if (role === 'boss') {
       window.location.href = '/boss-panel';
@@ -38,22 +58,58 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+    
     try {
-      const res = await axios.post("https://smart-agency-backend.vercel.app/api/auth/login", {
+      console.log('Attempting login to:', `${API_BASE}/auth/login`);
+      
+      const res = await axios.post(`${API_BASE}/auth/login`, {
         email: identifier.trim(),
         password: password.trim()
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000 // 10 second timeout
       });
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      redirectUser(res.data.user.role);
+      
+      console.log('Login response:', res.data);
+      
+      if (res.data.token && res.data.user) {
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        redirectUser(res.data.user.role);
+      } else {
+        setError('Invalid response from server');
+      }
+      
     } catch (err) {
-      alert(err.response?.data?.message || "Login Failed!");
+      console.error("Login error details:", {
+        message: err.message,
+        response: err.response,
+        request: err.request,
+        config: err.config
+      });
+      
+      if (err.code === 'ECONNABORTED') {
+        setError('Connection timeout. Please try again.');
+      } else if (err.response) {
+        // Server responded with error
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        // Request made but no response
+        setError('Cannot connect to server. Please check if backend is running.');
+      } else {
+        setError('Login failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div style={{
-      // Background Image with a slight dark overlay for better text visibility
       backgroundImage: `linear-gradient(to right, rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url('${bgImage}')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
@@ -62,13 +118,12 @@ const Login = () => {
       width: '100vw',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'flex-end', // Card moves to right
-      paddingRight: '8%', // Gap from right edge
+      justifyContent: 'flex-end',
+      paddingRight: '8%',
       fontFamily: "'Poppins', sans-serif",
       overflow: 'hidden'
     }}>
      
-      {/* Login Card */}
       <div style={{
         maxWidth: '420px',
         width: '100%',
@@ -92,12 +147,26 @@ const Login = () => {
             🍔
           </div>
           <h3 style={{ fontWeight: '900', color: '#333', marginBottom: '5px', letterSpacing: '-1px' }}>
-            RESTAURANT MANGEMENT <span style={{ color: '#dc3545' }}>SYSTEM</span>
+            RESTAURANT MANAGEMENT <span style={{ color: '#dc3545' }}>SYSTEM</span>
           </h3>
           <p style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' }}>
             Login to Access Your Ordering System
           </p>
         </div>
+
+        {error && (
+          <div style={{
+            backgroundColor: '#f8d7da',
+            color: '#721c24',
+            padding: '10px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            fontSize: '12px',
+            textAlign: 'center'
+          }}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: '20px' }}>
@@ -106,12 +175,16 @@ const Login = () => {
             </label>
             <input
               type="email"
-              placeholder="admin@smart.com"
+              placeholder="admin@burger.com"
+              value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               required
+              disabled={loading}
               style={{
                 width: '100%', padding: '15px 20px', borderRadius: '15px', border: '1px solid #eee',
-                backgroundColor: '#f9f9f9', fontSize: '14px', outline: 'none', transition: '0.3s'
+                backgroundColor: loading ? '#f5f5f5' : '#f9f9f9', 
+                fontSize: '14px', outline: 'none', transition: '0.3s',
+                opacity: loading ? 0.7 : 1
               }}
             />
           </div>
@@ -123,22 +196,32 @@ const Login = () => {
             <input
               type="password"
               placeholder="••••••••"
+              value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={loading}
               style={{
                 width: '100%', padding: '15px 20px', borderRadius: '15px', border: '1px solid #eee',
-                backgroundColor: '#f9f9f9', fontSize: '14px', outline: 'none'
+                backgroundColor: loading ? '#f5f5f5' : '#f9f9f9', 
+                fontSize: '14px', outline: 'none',
+                opacity: loading ? 0.7 : 1
               }}
             />
           </div>
          
-          <button type="submit" style={{
-            width: '100%', padding: '15px', borderRadius: '15px', border: 'none',
-            backgroundColor: '#dc3545', color: 'white', fontWeight: 'bold', fontSize: '14px',
-            cursor: 'pointer', transition: 'all 0.3s ease', boxShadow: '0 8px 15px rgba(220, 53, 69, 0.2)',
-            textTransform: 'uppercase'
-          }}>
-            Sign In
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={{
+              width: '100%', padding: '15px', borderRadius: '15px', border: 'none',
+              backgroundColor: loading ? '#999' : '#dc3545', 
+              color: 'white', fontWeight: 'bold', fontSize: '14px',
+              cursor: loading ? 'not-allowed' : 'pointer', 
+              transition: 'all 0.3s ease', 
+              boxShadow: '0 8px 15px rgba(220, 53, 69, 0.2)',
+              textTransform: 'uppercase'
+            }}>
+            {loading ? 'LOGGING IN...' : 'Sign In'}
           </button>
         </form>
 
@@ -151,15 +234,19 @@ const Login = () => {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
-            onError={() => console.log("Login Failed")}
+            onError={() => {
+              console.log("Google Login Failed");
+              setError("Google Login Failed");
+            }}
             shape="pill"
             width="340"
+            disabled={loading}
           />
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <p style={{ color: '#bbb', fontSize: '9px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase' }}>
-            Powered by Restaurant Management System 2026
+            POWERED BY RESTAURANT MANAGEMENT SYSTEM 2026
           </p>
         </div>
       </div>
